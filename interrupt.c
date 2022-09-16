@@ -1,9 +1,25 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include "print.h"
-
 #include "interrupt.h"
+
+char int_nibbleToHex(uint8_t n) {
+    return n > 9 ? (n - 10) + 'A' : n + '0';
+}
+void int_printByte(uint8_t v, uint16_t *buff) {
+    *(char *)&buff[0] = int_nibbleToHex((v >> 4) & 0xF);
+    *(char *)&buff[1] = int_nibbleToHex(v & 0xF);
+}
+__attribute((__no_caller_saved_registers__))
+void int_printWord(uint16_t v, uint16_t *buff) {
+    int_printByte(v >> 8, buff);
+    int_printByte(v, &buff[2]);
+}
+__attribute((__no_caller_saved_registers__))
+void int_printDword(uint32_t v, uint16_t *buff) {
+    int_printWord(v >> 16, buff);
+    int_printWord(v, &buff[4]);
+}
 
 struct __attribute__((__packed__)) IDTR_t {
     uint16_t size;
@@ -74,7 +90,7 @@ extern void jmp_usermode_test();
 #define VALID_FLAGS 0xDFF
 __attribute__ ((interrupt))
 void gpf_handler_v86(struct interrupt_frame *frame, unsigned long error_code) {
-    asm volatile("mov %%ax,%%ds"::"a"(0x10));
+    //asm volatile("mov %%ax,%%ds"::"a"(0x10));
     uint8_t *ip;
     uint16_t *stack;
     uint32_t *stack32;
@@ -84,17 +100,17 @@ void gpf_handler_v86(struct interrupt_frame *frame, unsigned long error_code) {
     stack32 = (uint32_t*)stack;
 
     char *vga = (char*)0xb8000 + (160 * 10);
-    vga[0] = 'I'; vga[2] = 'P'; printWord(frame->eip, &vga[4]); vga += 14;
-    vga[0] = 'C'; vga[2] = 'S'; printWord(frame->cs, &vga[4]); vga += 14;
-    vga[0] = 'F'; vga[2] = 'L'; printDword(frame->eflags, &vga[4]); vga += 14;
+    vga[0] = 'I'; vga[2] = 'P'; int_printWord(frame->eip, (uint16_t*)&vga[4]); vga += 14;
+    vga[0] = 'C'; vga[2] = 'S'; int_printWord(frame->cs, (uint16_t*)&vga[4]); vga += 14;
+    vga[0] = 'F'; vga[2] = 'L'; int_printDword(frame->eflags, (uint16_t*)&vga[4]); vga += 14;
     vga = (char*)0xb8000 + (160 * 11);
-    vga[0] = 'S'; vga[2] = 'P'; printWord(frame->esp, &vga[4]); vga += 14;
-    vga[0] = 'S'; vga[2] = 'S'; printWord(frame->ss, &vga[4]); vga += 14;
+    vga[0] = 'S'; vga[2] = 'P'; int_printWord(frame->esp, (uint16_t*)&vga[4]); vga += 14;
+    vga[0] = 'S'; vga[2] = 'S'; int_printWord(frame->ss, (uint16_t*)&vga[4]); vga += 14;
     vga = (char*)0xb8000 + (160 * 12);
-    vga[0] = 'E'; vga[2] = 'S'; printWord(frame->es, &vga[4]); vga += 14;
-    vga[0] = 'D'; vga[2] = 'S'; printWord(frame->ds, &vga[4]); vga += 14;
-    vga[0] = 'F'; vga[2] = 'S'; printWord(frame->fs, &vga[4]); vga += 14;
-    vga[0] = 'G'; vga[2] = 'S'; printWord(frame->gs, &vga[4]); vga += 14;
+    vga[0] = 'E'; vga[2] = 'S'; int_printWord(frame->es, (uint16_t*)&vga[4]); vga += 14;
+    vga[0] = 'D'; vga[2] = 'S'; int_printWord(frame->ds, (uint16_t*)&vga[4]); vga += 14;
+    vga[0] = 'F'; vga[2] = 'S'; int_printWord(frame->fs, (uint16_t*)&vga[4]); vga += 14;
+    vga[0] = 'G'; vga[2] = 'S'; int_printWord(frame->gs, (uint16_t*)&vga[4]); vga += 14;
 
     //vga[2]++;
     //printDword(frame, &vga[20]);
@@ -160,7 +176,7 @@ void gpf_handler_v86(struct interrupt_frame *frame, unsigned long error_code) {
                 vga[0] = 'I'; vga[2]++; if (vga[2] < '0') vga[2] = '0';
                 switch (ip[1]) {
                     case 0x30:
-                        asm("jmp jmp_usermode_test");
+                        asm ("jmp jmp_usermode_test");
                         for(;;);
                     case 0x3:
                         kbd_wait();
@@ -172,10 +188,10 @@ void gpf_handler_v86(struct interrupt_frame *frame, unsigned long error_code) {
                         stack[1] = frame->cs;
                         stack[2] = (uint16_t) frame->eflags;
                         
-                        //if (v86_if)
-                        //    stack[2] |= EFLAG_IF;
-                        //else
-                        //    stack[2] &= ~EFLAG_IF;
+                        if (v86_if)
+                            stack[2] |= EFLAG_IF;
+                        else
+                            stack[2] &= ~EFLAG_IF;
 
                         frame->cs = ivt[ip[1] * 2 + 1];
                         frame->eip = ivt[ip[1] * 2];
@@ -201,19 +217,19 @@ void gpf_handler_v86(struct interrupt_frame *frame, unsigned long error_code) {
                 for(;;);
         }
     }
-    done:
+    done:;
     vga = (char*)0xb8000 + (160 * 13);
-    vga[0] = 'I'; vga[2] = 'P'; printWord(frame->eip, &vga[4]); vga += 14;
-    vga[0] = 'C'; vga[2] = 'S'; printWord(frame->cs, &vga[4]); vga += 14;
-    vga[0] = 'F'; vga[2] = 'L'; printDword(frame->eflags, &vga[4]); vga += 14;
+    vga[0] = 'I'; vga[2] = 'P'; int_printWord(frame->eip, (uint16_t*)&vga[4]); vga += 14;
+    vga[0] = 'C'; vga[2] = 'S'; int_printWord(frame->cs, (uint16_t*)&vga[4]); vga += 14;
+    vga[0] = 'F'; vga[2] = 'L'; int_printDword(frame->eflags, (uint16_t*)&vga[4]); vga += 14;
     vga = (char*)0xb8000 + (160 * 14);
-    vga[0] = 'S'; vga[2] = 'P'; printWord(frame->esp, &vga[4]); vga += 14;
-    vga[0] = 'S'; vga[2] = 'S'; printWord(frame->ss, &vga[4]); vga += 14;
+    vga[0] = 'S'; vga[2] = 'P'; int_printWord(frame->esp, (uint16_t*)&vga[4]); vga += 14;
+    vga[0] = 'S'; vga[2] = 'S'; int_printWord(frame->ss, (uint16_t*)&vga[4]); vga += 14;
     vga = (char*)0xb8000 + (160 * 15);
-    vga[0] = 'E'; vga[2] = 'S'; printWord(frame->es, &vga[4]); vga += 14;
-    vga[0] = 'D'; vga[2] = 'S'; printWord(frame->ds, &vga[4]); vga += 14;
-    vga[0] = 'F'; vga[2] = 'S'; printWord(frame->fs, &vga[4]); vga += 14;
-    vga[0] = 'G'; vga[2] = 'S'; printWord(frame->gs, &vga[4]); vga += 14;
+    vga[0] = 'E'; vga[2] = 'S'; int_printWord(frame->es, (uint16_t*)&vga[4]); vga += 14;
+    vga[0] = 'D'; vga[2] = 'S'; int_printWord(frame->ds, (uint16_t*)&vga[4]); vga += 14;
+    vga[0] = 'F'; vga[2] = 'S'; int_printWord(frame->fs, (uint16_t*)&vga[4]); vga += 14;
+    vga[0] = 'G'; vga[2] = 'S'; int_printWord(frame->gs, (uint16_t*)&vga[4]); vga += 14;
 }
 
 extern void timerHandler();
@@ -252,8 +268,8 @@ void setup_interrupts() {
 
     set_system_gate(0x20, timerHandler);
     set_system_gate(0x21, keyboardHandler);
-    set_trap_gate(13, gpf_handler_v86);
-    //set_trap_gate(13, gpfHandler);
+    //set_trap_gate(13, gpf_handler_v86);
+    set_trap_gate(13, gpfHandler);
 
     asm volatile("lidt %0": : "m"(IDTR));
     picInit();

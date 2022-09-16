@@ -68,7 +68,7 @@ inc al
 cmp eax, 200
 jl .loop
 xor ebx, ebx
-div bl
+div bl ; Unhandled DIV0 exception
 
 global jmp_usermode_test
 jmp_usermode_test:

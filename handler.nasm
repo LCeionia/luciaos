@@ -12,10 +12,14 @@ jmp .hlt
 extern gpf_handler_v86
 global gpfHandler
 gpfHandler:
-iret
+push eax
 mov ax, 0x10
 mov ds, ax
-;jmp gpf_handler_v86
+mov eax, dword [esp+16] ; EFLAGS
+and eax, 1 << 17 ; VM flag
+test eax, eax
+pop eax
+jnz gpf_handler_v86
 mov word [0xb8000], 0x0f00 | 'G'
 mov word [0xb8002], 0x0f00 | 'P'
 mov word [0xb8004], 0x0f00 | 'F'
@@ -71,8 +75,7 @@ kbd_wait:
 mov byte [KBDWAIT], 0
 .loop:
 hlt
-xor eax, eax
-mov al, [KBDWAIT]
+movzx eax, byte [KBDWAIT]
 test eax, eax
 jz .loop
 ret
