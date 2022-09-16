@@ -54,6 +54,7 @@ inc byte [0]
 ;mov ax, 0x6666
 ;mov sp, ax
 int 3
+int 3
 ;jmp .loop
 mov ax, 0x13
 int 0x10

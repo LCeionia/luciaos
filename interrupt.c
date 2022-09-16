@@ -66,18 +66,20 @@ void IRQ_clear_mask(char IRQline) {
 }
 
 char v86_if = 0;
+extern uint16_t *ivt;
 extern void real_test();
+__attribute((__no_caller_saved_registers__))
 extern void kbd_wait();
+extern void jmp_usermode_test();
 #define VALID_FLAGS 0xDFF
 __attribute__ ((interrupt))
 void gpf_handler_v86(struct interrupt_frame *frame, unsigned long error_code) {
     asm volatile("mov %%ax,%%ds"::"a"(0x10));
     uint8_t *ip;
-    uint16_t *stack, *ivt;
+    uint16_t *stack;
     uint32_t *stack32;
     char is_operand32 = 0, is_address32 = 0;
-    ip = (size_t)(((frame->cs << 4) + frame->eip) & 0xFFFFF);
-    ivt = (uint16_t*)0x0000;
+    ip = (uint8_t*)(size_t)(((frame->cs << 4) + frame->eip) & 0xFFFFF);
     stack = FP_TO_LINEAR(frame->ss, frame->esp);
     stack32 = (uint32_t*)stack;
 
@@ -156,37 +158,28 @@ void gpf_handler_v86(struct interrupt_frame *frame, unsigned long error_code) {
                 goto done;
             case 0xCD: // INT n
                 vga[0] = 'I'; vga[2]++; if (vga[2] < '0') vga[2] = '0';
-                asm volatile("nop\nnop");
                 switch (ip[1]) {
-                    case 0x30: // Exit V86 Mode?
-                        asm volatile("nop\nnop");
-                        asm volatile("jmp jmp_usermode_test");
-                        //__builtin_unreachable();
-                        break;
-                    //case 0x20: // ???
-                    //case 0x21: // ???
-                    case 0x3:  // Debugger trap
+                    case 0x30:
+                        asm("jmp jmp_usermode_test");
+                        for(;;);
+                    case 0x3:
                         kbd_wait();
-                        asm volatile("nop");
                     default:
-                        stack -= 3;
+                        stack = &stack[-3];
                         frame->esp = ((frame->esp & 0xffff) - 6) & 0xffff;
 
                         stack[0] = (uint16_t) (frame->eip + 2);
                         stack[1] = frame->cs;
                         stack[2] = (uint16_t) frame->eflags;
                         
-                        if (v86_if)
-                            stack[2] |= EFLAG_IF;
-                        else
-                            stack[2] &= ~EFLAG_IF;
+                        //if (v86_if)
+                        //    stack[2] |= EFLAG_IF;
+                        //else
+                        //    stack[2] &= ~EFLAG_IF;
 
                         frame->cs = ivt[ip[1] * 2 + 1];
                         frame->eip = ivt[ip[1] * 2];
-                        asm volatile("nop");
-                        //frame->cs = 0;
-                        //frame->eip = real_test;
-                        goto done;
+                        break;
                 }
                 goto done;
             case 0xCF: // IRET
@@ -206,7 +199,6 @@ void gpf_handler_v86(struct interrupt_frame *frame, unsigned long error_code) {
                 goto done;
             default:
                 for(;;);
-                goto done;
         }
     }
     done:

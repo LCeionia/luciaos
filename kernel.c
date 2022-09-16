@@ -98,6 +98,7 @@ void start() {
     if (!sse) return;
     enable_sse();
 
+    // edit
     setup_interrupts();
     setup_tss();
     print_flags();

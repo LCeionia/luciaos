@@ -93,6 +93,9 @@ ret
 
 extern tss_data
 
+global ivt
+ivt: dd 0x00000000
+
 gdt_desc:
     dw gdt_end - gdt
     dd gdt
