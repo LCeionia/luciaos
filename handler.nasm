@@ -20,9 +20,8 @@ and eax, 1 << 17 ; VM flag
 test eax, eax
 pop eax
 jnz gpf_handler_v86
-mov word [0xb8000], 0x0f00 | 'G'
-mov word [0xb8002], 0x0f00 | 'P'
-mov word [0xb8004], 0x0f00 | 'F'
+mov dword [0xb8000], 0x0f000f00 | 'G' | 'P' << 16
+mov dword [0xb8004], 0x0f000f00 | 'F' | '!' << 16
 .hlt:
 hlt
 jmp .hlt

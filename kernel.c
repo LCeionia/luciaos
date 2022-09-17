@@ -52,8 +52,10 @@ void print_cr4() {
     printDword(reg, 0xB8000 + (160*5) + 50 + 8*4 + 4);
 }
 
+__attribute((__no_caller_saved_registers__))
 extern void enter_v86(uint32_t ss, uint32_t esp, uint32_t cs, uint32_t eip);
 extern void v86Code();
+__attribute((__no_caller_saved_registers__))
 extern void jmp_usermode_test();
 
 /*
@@ -107,6 +109,6 @@ void start() {
     print_cr4();
     FARPTR v86_entry = i386LinearToFp(v86Code);
     enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry));
-    //jmp_usermode_test();
+    jmp_usermode_test();
 }
 

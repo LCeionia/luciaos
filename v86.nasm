@@ -71,6 +71,7 @@ jmp $
 global enter_v86
 enter_v86:
 mov ebp, esp               ; save stack pointer
+mov dword [0x20004], ebp   ; tss ESP0
 push dword  [ebp+4]        ; ss
 push dword  [ebp+8]        ; esp
 pushfd                     ; eflags

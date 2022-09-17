@@ -9,7 +9,6 @@ CFLAGS = -target "i686-elf" -m32 -ffreestanding -march=pentium-m -fno-stack-prot
 
 all: $(objects)
 	nasm boot.nasm -o boot.bin
-	# not sure why but if interrupt.c has any optimization everything just breaks immediately
 	gcc -Tlink.ld -m32 -ffreestanding -nostartfiles -nostdlib -o kernel.bin\
 		$(objects)
 	dd bs=256 count=1 conv=notrunc if=boot.bin of=virtdisk.bin

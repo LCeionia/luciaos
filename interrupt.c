@@ -128,6 +128,7 @@ void gpf_handler_v86(struct interrupt_frame *frame, unsigned long error_code) {
     //    vga += (sizeof(uint8_t)*2)*2;
     //}
     vga = (char*)0xb8000 + (160*3);
+    uint32_t *tss_esp0 = (uint32_t*)0x20004;
     for(;;) {
         switch (ip[0]) {
             case 0x66: // O32
@@ -176,7 +177,7 @@ void gpf_handler_v86(struct interrupt_frame *frame, unsigned long error_code) {
                 vga[0] = 'I'; vga[2]++; if (vga[2] < '0') vga[2] = '0';
                 switch (ip[1]) {
                     case 0x30:
-                        asm ("jmp jmp_usermode_test");
+                        asm ("mov %%eax, %%esp\nret"::"a"(*tss_esp0));
                         for(;;);
                     case 0x3:
                         kbd_wait();
