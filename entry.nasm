@@ -62,16 +62,30 @@ mov word [0xb8010], 0x0f00 | '!'
 mov edi, 0xA0000
 xor eax, eax
 .loop:
-mov cx, 320
+mov ecx, 320
 rep stosb
 inc al
 cmp eax, 200
 jl .loop
+mov eax, 0xA0000
+int 0x30 ; Exit
 xor ebx, ebx
 div bl ; Unhandled DIV0 exception
 
 global jmp_usermode_test
 jmp_usermode_test:
+pop eax ; return address
+mov ebp, esp ; return stack
+push ss
+push ebp
+pushfd
+push cs
+push eax ; return address
+push ds ; other segs, pop
+push es ; before iret
+push fs ; in exit handler
+push gs
+mov dword [0x20004], esp   ; tss ESP0
 mov ax, 0x20 | 3
 mov ds, ax
 mov es, ax

@@ -56,7 +56,7 @@ __attribute((__no_caller_saved_registers__))
 extern void enter_v86(uint32_t ss, uint32_t esp, uint32_t cs, uint32_t eip);
 extern void v86Code();
 __attribute((__no_caller_saved_registers__))
-extern void jmp_usermode_test();
+extern char *jmp_usermode_test();
 
 /*
 Real Mode Accessible (First MB)
@@ -109,6 +109,10 @@ void start() {
     print_cr4();
     FARPTR v86_entry = i386LinearToFp(v86Code);
     enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry));
-    jmp_usermode_test();
+    char *vga = jmp_usermode_test();
+
+    for (int i = 0; i < 320; i++) {
+        vga[i] = i;
+    }
 }
 

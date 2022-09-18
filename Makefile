@@ -1,5 +1,5 @@
 objects = entry.o kernel.o handler.o interrupt.o v86.o print.o
-CFLAGS = -target "i686-elf" -m32 -ffreestanding -march=pentium-m -fno-stack-protector -nostdlib -c
+CFLAGS = -target "i686-elf" -m32 -mgeneral-regs-only -ffreestanding -march=pentium-m -fno-stack-protector -nostdlib -c
 
 %.o: %.nasm
 	nasm -f elf32 -o $@ $<

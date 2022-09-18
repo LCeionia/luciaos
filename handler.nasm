@@ -20,11 +20,27 @@ and eax, 1 << 17 ; VM flag
 test eax, eax
 pop eax
 jnz gpf_handler_v86
+jmp gpf_handler_32
+gpf_unhandled:
 mov dword [0xb8000], 0x0f000f00 | 'G' | 'P' << 16
 mov dword [0xb8004], 0x0f000f00 | 'F' | '!' << 16
 .hlt:
 hlt
 jmp .hlt
+
+gpf_handler_32:
+push eax
+mov eax, dword [esp+8] ; EIP
+movzx eax, word [eax]
+cmp eax, 0x30CD ; int 0x30
+jne gpf_unhandled
+pop eax ; return value
+mov esp, dword [0x20004] ; return info
+pop gs
+pop fs
+pop es
+pop ds
+iret ; return to original caller
 
 scancodesToAscii: db 0, 0 ; 0x00 - 0x01
 db "1234567890" ; 0x02 - 0x0B
