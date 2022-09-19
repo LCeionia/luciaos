@@ -3,7 +3,7 @@
 #include "print.h"
 #include "interrupt.h"
 
-#include "tss.c"
+#include "tss.h"
 
 typedef unsigned short word;
 
@@ -54,23 +54,33 @@ void print_cr4() {
 
 __attribute((__no_caller_saved_registers__))
 extern void enter_v86(uint32_t ss, uint32_t esp, uint32_t cs, uint32_t eip);
-extern void v86Code();
+extern void v86Test();
+extern void v86GfxMode();
 __attribute((__no_caller_saved_registers__))
 extern char *jmp_usermode_test();
 
 /*
 Real Mode Accessible (First MB)
- 00000 -  02000 IVT
- 01000 -  04000 Paging
- 04000 -  07C00 Free
- 07C00 -  08000 Boot
- 08000 -  20000 Kernel Code
- 20000 -  22080 TSS
- 80000 -  90000 Real Mode Stack
- 90000 -  A0000 Free
- A0000 -  FFFFF BIOS Area
+ 00000 -  00400 IVT (1kB)
+ 00400 -  01000 Unused (3kB)
+ 01000 -  04000 Paging (12kB)
+ 04000 -  07C00 Free (15kB)
+ 07C00 -  08000 Boot (512B)
+ 08000 -  20000 Kernel Code (96kB)
+ 20000 -  20080 TSS (128B)
+ 20080 -  22080 TSS IOMAP (8kB)
+ 22080 -  22400 Unused (896B)
+ 22400 -  23000 Free (3kB)
+ 23000 -  80000 Free (372kB)
+ 80000 -  90000 Real Mode Stack (64kB)
+ 90000 -  A0000 Free (64kB)
+ A0000 -  FFFFF BIOS Area (384kB)
 Protected Only (1MB+)
-100000 -        Free
+100000 - 300000 Free (2mB)
+300000 - 310000 Task Stack (64kB)
+310000 - 320000 Interrupt Stack (64kB)
+320000 - 400000 Kernel Stack (896kB)
+400000 - 500000 Usermode Stack (1mB)
 */
 
 void start() {
@@ -107,9 +117,12 @@ void start() {
     print_cr0();
     print_cr3();
     print_cr4();
-    FARPTR v86_entry = i386LinearToFp(v86Code);
+    FARPTR v86_entry = i386LinearToFp(v86Test);
+    enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry));
+    v86_entry = i386LinearToFp(v86GfxMode);
     enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry));
     char *vga = jmp_usermode_test();
+    //asm ("xchgw %bx, %bx");
 
     for (int i = 0; i < 320; i++) {
         vga[i] = i;

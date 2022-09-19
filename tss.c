@@ -1,5 +1,7 @@
 #include <stdint.h>
 
+#include "tss.h"
+
 struct __attribute__((__packed__)) tss_entry_struct {
     uint32_t prev_tss;
     uint32_t esp0;
@@ -35,8 +37,13 @@ void write_tss() {
     for (int i = 0; i < 0x2080; i++)
         ((uint8_t*)tss_data)[i] = 0;
     tss_data->ss0 = 0x10;
-    tss_data->esp0 = 0x400000;
+    tss_data->esp0 = 0x320000;
     tss_data->iomap_base = 0x80;
+
+    // not technically TSS but set up task pointer
+    uint32_t *current_task_ptr = (uint32_t*)(0x310000-4);
+    *current_task_ptr = 0x310000-40; // each task is 9 dwords, plus 1 for pointer
+    /* TODO setup null recovery task at start */
 }
 extern void flushTSS();
 

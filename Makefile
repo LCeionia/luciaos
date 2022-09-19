@@ -1,4 +1,4 @@
-objects = entry.o kernel.o handler.o interrupt.o v86.o print.o
+objects = entry.o kernel.o task.o handler.o interrupt.o v86.o print.o tss.o
 CFLAGS = -target "i686-elf" -m32 -mgeneral-regs-only -ffreestanding -march=pentium-m -fno-stack-protector -nostdlib -c
 
 %.o: %.nasm

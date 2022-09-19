@@ -35,12 +35,9 @@ movzx eax, word [eax]
 cmp eax, 0x30CD ; int 0x30
 jne gpf_unhandled
 pop eax ; return value
-mov esp, dword [0x20004] ; return info
-pop gs
-pop fs
-pop es
-pop ds
-iret ; return to original caller
+jmp return_prev_task
+
+extern return_prev_task
 
 scancodesToAscii: db 0, 0 ; 0x00 - 0x01
 db "1234567890" ; 0x02 - 0x0B

@@ -26,8 +26,8 @@ call real_hexprint
 mov ax, dx
 call real_hexprint
 ret
-extern v86Code
-v86Code:
+global v86Test
+v86Test:
 mov ax, 0xb814
 mov es, ax
 mov di, 20
@@ -41,43 +41,31 @@ mov ax, cs
 call real_printword
 .loop:
 inc byte [0]
-;mov ax, 0x1111
-;mov ds, ax
-;mov ax, 0x2222
-;mov es, ax
-;mov ax, 0x3333
-;mov fs, ax
-;mov ax, 0x4444
-;mov gs, ax
-;mov ax, 0x5555
-;mov ss, ax
-;mov ax, 0x6666
-;mov sp, ax
 int 3
 int 3
-;jmp .loop
-mov ax, 0x13
-int 0x10
 int 0x30 ; exit
 jmp $
-extern real_test
-real_test:
-nop
-nop
-nop
+global v86GfxMode
+v86GfxMode:
+mov ax, 0x13
+int 0x10
+int 0x30
 jmp $
 [BITS 32]
 ; extern void enter_v86(uint32_t ss, uint32_t esp, uint32_t cs, uint32_t eip);
 global enter_v86
 enter_v86:
+pop eax
 mov ebp, esp               ; save stack pointer
-mov dword [0x20004], ebp   ; tss ESP0
-push dword  [ebp+4]        ; ss
-push dword  [ebp+8]        ; esp
+call save_current_task
+push dword  [ebp+0]        ; ss
+push dword  [ebp+4]        ; esp
 pushfd                     ; eflags
 or dword [esp], (1 << 17)  ; set VM flags
 ;or dword [esp], (3 << 12) ; IOPL 3
-push dword [ebp+12]        ; cs
-push dword  [ebp+16]       ; eip
+push dword [ebp+8]        ; cs
+push dword  [ebp+12]       ; eip
 iret
 
+; return address in eax, return stack in ebp
+extern save_current_task

@@ -76,17 +76,9 @@ global jmp_usermode_test
 jmp_usermode_test:
 pop eax ; return address
 mov ebp, esp ; return stack
-push ss
-push ebp
-pushfd
-push cs
-push eax ; return address
-push ds ; other segs, pop
-push es ; before iret
-push fs ; in exit handler
-push gs
-mov dword [0x20004], esp   ; tss ESP0
-mov ax, 0x20 | 3
+call save_current_task
+mov esp, 0x500000 ; usermode stack
+mov eax, 0x20 | 3
 mov ds, ax
 mov es, ax
 mov fs, ax
@@ -98,6 +90,8 @@ pushfd
 push 0x18 | 3
 push user_test
 iret
+
+extern save_current_task
 
 global flushTSS
 flushTSS:

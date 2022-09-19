@@ -87,6 +87,8 @@ extern void real_test();
 __attribute((__no_caller_saved_registers__))
 extern void kbd_wait();
 extern void jmp_usermode_test();
+__attribute((__no_caller_saved_registers__))
+extern void return_prev_task();
 #define VALID_FLAGS 0xDFF
 __attribute__ ((interrupt))
 void gpf_handler_v86(struct interrupt_frame *frame, unsigned long error_code) {
@@ -100,17 +102,17 @@ void gpf_handler_v86(struct interrupt_frame *frame, unsigned long error_code) {
     stack32 = (uint32_t*)stack;
 
     char *vga = (char*)0xb8000 + (160 * 10);
-    vga[0] = 'I'; vga[2] = 'P'; int_printWord(frame->eip, (uint16_t*)&vga[4]); vga += 14;
-    vga[0] = 'C'; vga[2] = 'S'; int_printWord(frame->cs, (uint16_t*)&vga[4]); vga += 14;
-    vga[0] = 'F'; vga[2] = 'L'; int_printDword(frame->eflags, (uint16_t*)&vga[4]); vga += 14;
-    vga = (char*)0xb8000 + (160 * 11);
-    vga[0] = 'S'; vga[2] = 'P'; int_printWord(frame->esp, (uint16_t*)&vga[4]); vga += 14;
-    vga[0] = 'S'; vga[2] = 'S'; int_printWord(frame->ss, (uint16_t*)&vga[4]); vga += 14;
-    vga = (char*)0xb8000 + (160 * 12);
-    vga[0] = 'E'; vga[2] = 'S'; int_printWord(frame->es, (uint16_t*)&vga[4]); vga += 14;
-    vga[0] = 'D'; vga[2] = 'S'; int_printWord(frame->ds, (uint16_t*)&vga[4]); vga += 14;
-    vga[0] = 'F'; vga[2] = 'S'; int_printWord(frame->fs, (uint16_t*)&vga[4]); vga += 14;
-    vga[0] = 'G'; vga[2] = 'S'; int_printWord(frame->gs, (uint16_t*)&vga[4]); vga += 14;
+    //vga[0] = 'I'; vga[2] = 'P'; int_printWord(frame->eip, (uint16_t*)&vga[4]); vga += 14;
+    //vga[0] = 'C'; vga[2] = 'S'; int_printWord(frame->cs, (uint16_t*)&vga[4]); vga += 14;
+    //vga[0] = 'F'; vga[2] = 'L'; int_printDword(frame->eflags, (uint16_t*)&vga[4]); vga += 14;
+    //vga = (char*)0xb8000 + (160 * 11);
+    //vga[0] = 'S'; vga[2] = 'P'; int_printWord(frame->esp, (uint16_t*)&vga[4]); vga += 14;
+    //vga[0] = 'S'; vga[2] = 'S'; int_printWord(frame->ss, (uint16_t*)&vga[4]); vga += 14;
+    //vga = (char*)0xb8000 + (160 * 12);
+    //vga[0] = 'E'; vga[2] = 'S'; int_printWord(frame->es, (uint16_t*)&vga[4]); vga += 14;
+    //vga[0] = 'D'; vga[2] = 'S'; int_printWord(frame->ds, (uint16_t*)&vga[4]); vga += 14;
+    //vga[0] = 'F'; vga[2] = 'S'; int_printWord(frame->fs, (uint16_t*)&vga[4]); vga += 14;
+    //vga[0] = 'G'; vga[2] = 'S'; int_printWord(frame->gs, (uint16_t*)&vga[4]); vga += 14;
 
     //vga[2]++;
     //printDword(frame, &vga[20]);
@@ -128,7 +130,6 @@ void gpf_handler_v86(struct interrupt_frame *frame, unsigned long error_code) {
     //    vga += (sizeof(uint8_t)*2)*2;
     //}
     vga = (char*)0xb8000 + (160*3);
-    uint32_t *tss_esp0 = (uint32_t*)0x20004;
     for(;;) {
         switch (ip[0]) {
             case 0x66: // O32
@@ -177,7 +178,7 @@ void gpf_handler_v86(struct interrupt_frame *frame, unsigned long error_code) {
                 vga[0] = 'I'; vga[2]++; if (vga[2] < '0') vga[2] = '0';
                 switch (ip[1]) {
                     case 0x30:
-                        asm ("mov %%eax, %%esp\nret"::"a"(*tss_esp0));
+                        return_prev_task();
                         for(;;);
                     case 0x3:
                         kbd_wait();
@@ -219,18 +220,18 @@ void gpf_handler_v86(struct interrupt_frame *frame, unsigned long error_code) {
         }
     }
     done:;
-    vga = (char*)0xb8000 + (160 * 13);
-    vga[0] = 'I'; vga[2] = 'P'; int_printWord(frame->eip, (uint16_t*)&vga[4]); vga += 14;
-    vga[0] = 'C'; vga[2] = 'S'; int_printWord(frame->cs, (uint16_t*)&vga[4]); vga += 14;
-    vga[0] = 'F'; vga[2] = 'L'; int_printDword(frame->eflags, (uint16_t*)&vga[4]); vga += 14;
-    vga = (char*)0xb8000 + (160 * 14);
-    vga[0] = 'S'; vga[2] = 'P'; int_printWord(frame->esp, (uint16_t*)&vga[4]); vga += 14;
-    vga[0] = 'S'; vga[2] = 'S'; int_printWord(frame->ss, (uint16_t*)&vga[4]); vga += 14;
-    vga = (char*)0xb8000 + (160 * 15);
-    vga[0] = 'E'; vga[2] = 'S'; int_printWord(frame->es, (uint16_t*)&vga[4]); vga += 14;
-    vga[0] = 'D'; vga[2] = 'S'; int_printWord(frame->ds, (uint16_t*)&vga[4]); vga += 14;
-    vga[0] = 'F'; vga[2] = 'S'; int_printWord(frame->fs, (uint16_t*)&vga[4]); vga += 14;
-    vga[0] = 'G'; vga[2] = 'S'; int_printWord(frame->gs, (uint16_t*)&vga[4]); vga += 14;
+    //vga = (char*)0xb8000 + (160 * 13);
+    //vga[0] = 'I'; vga[2] = 'P'; int_printWord(frame->eip, (uint16_t*)&vga[4]); vga += 14;
+    //vga[0] = 'C'; vga[2] = 'S'; int_printWord(frame->cs, (uint16_t*)&vga[4]); vga += 14;
+    //vga[0] = 'F'; vga[2] = 'L'; int_printDword(frame->eflags, (uint16_t*)&vga[4]); vga += 14;
+    //vga = (char*)0xb8000 + (160 * 14);
+    //vga[0] = 'S'; vga[2] = 'P'; int_printWord(frame->esp, (uint16_t*)&vga[4]); vga += 14;
+    //vga[0] = 'S'; vga[2] = 'S'; int_printWord(frame->ss, (uint16_t*)&vga[4]); vga += 14;
+    //vga = (char*)0xb8000 + (160 * 15);
+    //vga[0] = 'E'; vga[2] = 'S'; int_printWord(frame->es, (uint16_t*)&vga[4]); vga += 14;
+    //vga[0] = 'D'; vga[2] = 'S'; int_printWord(frame->ds, (uint16_t*)&vga[4]); vga += 14;
+    //vga[0] = 'F'; vga[2] = 'S'; int_printWord(frame->fs, (uint16_t*)&vga[4]); vga += 14;
+    //vga[0] = 'G'; vga[2] = 'S'; int_printWord(frame->gs, (uint16_t*)&vga[4]); vga += 14;
 }
 
 extern void timerHandler();
