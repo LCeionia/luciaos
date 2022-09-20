@@ -102,17 +102,17 @@ void gpf_handler_v86(struct interrupt_frame *frame, unsigned long error_code) {
     stack32 = (uint32_t*)stack;
 
     char *vga = (char*)0xb8000 + (160 * 10);
-    //vga[0] = 'I'; vga[2] = 'P'; int_printWord(frame->eip, (uint16_t*)&vga[4]); vga += 14;
-    //vga[0] = 'C'; vga[2] = 'S'; int_printWord(frame->cs, (uint16_t*)&vga[4]); vga += 14;
-    //vga[0] = 'F'; vga[2] = 'L'; int_printDword(frame->eflags, (uint16_t*)&vga[4]); vga += 14;
-    //vga = (char*)0xb8000 + (160 * 11);
-    //vga[0] = 'S'; vga[2] = 'P'; int_printWord(frame->esp, (uint16_t*)&vga[4]); vga += 14;
-    //vga[0] = 'S'; vga[2] = 'S'; int_printWord(frame->ss, (uint16_t*)&vga[4]); vga += 14;
-    //vga = (char*)0xb8000 + (160 * 12);
-    //vga[0] = 'E'; vga[2] = 'S'; int_printWord(frame->es, (uint16_t*)&vga[4]); vga += 14;
-    //vga[0] = 'D'; vga[2] = 'S'; int_printWord(frame->ds, (uint16_t*)&vga[4]); vga += 14;
-    //vga[0] = 'F'; vga[2] = 'S'; int_printWord(frame->fs, (uint16_t*)&vga[4]); vga += 14;
-    //vga[0] = 'G'; vga[2] = 'S'; int_printWord(frame->gs, (uint16_t*)&vga[4]); vga += 14;
+    vga[0] = 'I'; vga[2] = 'P'; int_printWord(frame->eip, (uint16_t*)&vga[4]); vga += 14;
+    vga[0] = 'C'; vga[2] = 'S'; int_printWord(frame->cs, (uint16_t*)&vga[4]); vga += 14;
+    vga[0] = 'F'; vga[2] = 'L'; int_printDword(frame->eflags, (uint16_t*)&vga[4]); vga += 14;
+    vga = (char*)0xb8000 + (160 * 11);
+    vga[0] = 'S'; vga[2] = 'P'; int_printWord(frame->esp, (uint16_t*)&vga[4]); vga += 14;
+    vga[0] = 'S'; vga[2] = 'S'; int_printWord(frame->ss, (uint16_t*)&vga[4]); vga += 14;
+    vga = (char*)0xb8000 + (160 * 12);
+    vga[0] = 'E'; vga[2] = 'S'; int_printWord(frame->es, (uint16_t*)&vga[4]); vga += 14;
+    vga[0] = 'D'; vga[2] = 'S'; int_printWord(frame->ds, (uint16_t*)&vga[4]); vga += 14;
+    vga[0] = 'F'; vga[2] = 'S'; int_printWord(frame->fs, (uint16_t*)&vga[4]); vga += 14;
+    vga[0] = 'G'; vga[2] = 'S'; int_printWord(frame->gs, (uint16_t*)&vga[4]); vga += 14;
 
     //vga[2]++;
     //printDword(frame, &vga[20]);
@@ -220,18 +220,18 @@ void gpf_handler_v86(struct interrupt_frame *frame, unsigned long error_code) {
         }
     }
     done:;
-    //vga = (char*)0xb8000 + (160 * 13);
-    //vga[0] = 'I'; vga[2] = 'P'; int_printWord(frame->eip, (uint16_t*)&vga[4]); vga += 14;
-    //vga[0] = 'C'; vga[2] = 'S'; int_printWord(frame->cs, (uint16_t*)&vga[4]); vga += 14;
-    //vga[0] = 'F'; vga[2] = 'L'; int_printDword(frame->eflags, (uint16_t*)&vga[4]); vga += 14;
-    //vga = (char*)0xb8000 + (160 * 14);
-    //vga[0] = 'S'; vga[2] = 'P'; int_printWord(frame->esp, (uint16_t*)&vga[4]); vga += 14;
-    //vga[0] = 'S'; vga[2] = 'S'; int_printWord(frame->ss, (uint16_t*)&vga[4]); vga += 14;
-    //vga = (char*)0xb8000 + (160 * 15);
-    //vga[0] = 'E'; vga[2] = 'S'; int_printWord(frame->es, (uint16_t*)&vga[4]); vga += 14;
-    //vga[0] = 'D'; vga[2] = 'S'; int_printWord(frame->ds, (uint16_t*)&vga[4]); vga += 14;
-    //vga[0] = 'F'; vga[2] = 'S'; int_printWord(frame->fs, (uint16_t*)&vga[4]); vga += 14;
-    //vga[0] = 'G'; vga[2] = 'S'; int_printWord(frame->gs, (uint16_t*)&vga[4]); vga += 14;
+    vga = (char*)0xb8000 + (160 * 13);
+    vga[0] = 'I'; vga[2] = 'P'; int_printWord(frame->eip, (uint16_t*)&vga[4]); vga += 14;
+    vga[0] = 'C'; vga[2] = 'S'; int_printWord(frame->cs, (uint16_t*)&vga[4]); vga += 14;
+    vga[0] = 'F'; vga[2] = 'L'; int_printDword(frame->eflags, (uint16_t*)&vga[4]); vga += 14;
+    vga = (char*)0xb8000 + (160 * 14);
+    vga[0] = 'S'; vga[2] = 'P'; int_printWord(frame->esp, (uint16_t*)&vga[4]); vga += 14;
+    vga[0] = 'S'; vga[2] = 'S'; int_printWord(frame->ss, (uint16_t*)&vga[4]); vga += 14;
+    vga = (char*)0xb8000 + (160 * 15);
+    vga[0] = 'E'; vga[2] = 'S'; int_printWord(frame->es, (uint16_t*)&vga[4]); vga += 14;
+    vga[0] = 'D'; vga[2] = 'S'; int_printWord(frame->ds, (uint16_t*)&vga[4]); vga += 14;
+    vga[0] = 'F'; vga[2] = 'S'; int_printWord(frame->fs, (uint16_t*)&vga[4]); vga += 14;
+    vga[0] = 'G'; vga[2] = 'S'; int_printWord(frame->gs, (uint16_t*)&vga[4]); vga += 14;
 }
 
 extern void timerHandler();

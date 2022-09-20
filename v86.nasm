@@ -51,6 +51,27 @@ mov ax, 0x13
 int 0x10
 int 0x30
 jmp $
+global v86TextMode
+v86TextMode:
+mov ax, 0x3
+int 0x10
+int 0x30
+jmp $
+global v86DiskRead
+v86DiskRead:
+xor ax, ax ; TODO fix assuming we're in first 64k
+mov ds, ax
+mov ah, 0x42
+mov dl, 0x80 ; TODO get this from BIOS or something
+mov si, v86disk_addr_packet ; ds:si
+int 0x13
+int 0x30
+jmp $
+v86disk_addr_packet:
+db 0x10, 0x00 ; size, reserved
+dw 0x20 ; blocks
+dd 0x23000000 ; transfer buffer 0x23000
+dq 0 ; start block
 [BITS 32]
 ; extern void enter_v86(uint32_t ss, uint32_t esp, uint32_t cs, uint32_t eip);
 global enter_v86

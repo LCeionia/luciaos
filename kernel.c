@@ -56,8 +56,12 @@ __attribute((__no_caller_saved_registers__))
 extern void enter_v86(uint32_t ss, uint32_t esp, uint32_t cs, uint32_t eip);
 extern void v86Test();
 extern void v86GfxMode();
+extern void v86TextMode();
+extern void v86DiskRead();
 __attribute((__no_caller_saved_registers__))
 extern char *jmp_usermode_test();
+__attribute((__no_caller_saved_registers__))
+extern void kbd_wait();
 
 /*
 Real Mode Accessible (First MB)
@@ -71,7 +75,8 @@ Real Mode Accessible (First MB)
  20080 -  22080 TSS IOMAP (8kB)
  22080 -  22400 Unused (896B)
  22400 -  23000 Free (3kB)
- 23000 -  80000 Free (372kB)
+ 23000 -  30000 Disk Buffer (52kB)
+ 30000 -  80000 Free (320kB)
  80000 -  90000 Real Mode Stack (64kB)
  90000 -  A0000 Free (64kB)
  A0000 -  FFFFF BIOS Area (384kB)
@@ -126,6 +131,16 @@ void start() {
 
     for (int i = 0; i < 320; i++) {
         vga[i] = i;
+    }
+    kbd_wait();
+    v86_entry = i386LinearToFp(v86TextMode);
+    enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry));
+    v86_entry = i386LinearToFp(v86DiskRead);
+    enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry));
+    vga_text = (word *)0xb8000;
+    char *bootloader = (char *)0x23000;
+    for (int i = 0; i < (80*25)/2; i++) {
+        printByte(bootloader[i], &vga_text[i*2]);
     }
 }
 
