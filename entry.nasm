@@ -16,6 +16,8 @@ mov ax, 0x10 ; set up segments
 mov ds, ax
 mov es, ax
 mov ss, ax
+mov fs, ax
+mov gs, ax
 mov ebp, 0x400000
 mov esp, ebp
 mov eax, 0x1f001f00
