@@ -26,6 +26,6 @@ string: db 'DISK ERROR'
 
 addr_packet:
 db 0x10, 0x00 ; size, reserved
-dw 0x20 ; blocks
+dw 0x39 ; blocks
 dd 0x8000 ; transfer buffer
 dq 1 ; start block

@@ -175,7 +175,7 @@ void gpf_handler_v86(struct interrupt_frame *frame, unsigned long error_code) {
                 frame->eip = (uint16_t)(frame->eip + 1);
                 goto done;
             case 0xCD: // INT n
-                vga[0] = 'I'; vga[2]++; if (vga[2] < '0') vga[2] = '0';
+                //vga[0] = 'I'; vga[2]++; if (vga[2] < '0') vga[2] = '0';
                 switch (ip[1]) {
                     case 0x30:
                         return_prev_task();

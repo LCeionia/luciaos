@@ -77,7 +77,7 @@ div bl ; Unhandled DIV0 exception
 global jmp_usermode_test
 jmp_usermode_test:
 pop eax ; return address
-mov ebp, esp ; return stack
+mov ecx, esp ; return stack
 call save_current_task
 mov esp, 0x500000 ; usermode stack
 mov eax, 0x20 | 3

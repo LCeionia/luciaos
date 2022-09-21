@@ -42,7 +42,7 @@ void write_tss() {
 
     // not technically TSS but set up task pointer
     uint32_t *current_task_ptr = (uint32_t*)(0x310000-4);
-    *current_task_ptr = 0x310000-40; // each task is 9 dwords, plus 1 for pointer
+    *current_task_ptr = 0x310000-(20*4); // each task is 12 dwords, plus 1 for pointer
     /* TODO setup null recovery task at start */
 }
 extern void flushTSS();

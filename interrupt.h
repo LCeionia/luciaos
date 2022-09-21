@@ -27,6 +27,7 @@ typedef uint32_t FARPTR;
 #define EFLAG_IF ((uint32_t)1 << 9)
 #define EFLAG_VM ((uint32_t)1 << 17)
 
+FARPTR i386LinearToFp(void *ptr);
 
 
 __attribute__ ((interrupt))

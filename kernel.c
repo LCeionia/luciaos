@@ -1,5 +1,6 @@
 #include <stdint.h>
 
+#include "dosfs/dosfs.h"
 #include "print.h"
 #include "interrupt.h"
 
@@ -52,13 +53,21 @@ void print_cr4() {
     printDword(reg, 0xB8000 + (160*5) + 50 + 8*4 + 4);
 }
 
-__attribute((__no_caller_saved_registers__))
+struct __attribute((__packed__)) Int13DiskPacket_t {
+    uint8_t size; // 0x10
+    uint8_t reserved; // 0x00
+    uint16_t blocks;
+    uint32_t transfer_buffer; // 0x2300:0000
+    uint64_t start_block;
+};
+
+extern struct Int13DiskPacket_t v86disk_addr_packet;
+
 extern void enter_v86(uint32_t ss, uint32_t esp, uint32_t cs, uint32_t eip);
 extern void v86Test();
 extern void v86GfxMode();
 extern void v86TextMode();
 extern void v86DiskRead();
-__attribute((__no_caller_saved_registers__))
 extern char *jmp_usermode_test();
 __attribute((__no_caller_saved_registers__))
 extern void kbd_wait();
@@ -87,6 +96,92 @@ Protected Only (1MB+)
 320000 - 400000 Kernel Stack (896kB)
 400000 - 500000 Usermode Stack (1mB)
 */
+
+void TestV86() {
+    FARPTR v86_entry = i386LinearToFp(v86Test);
+    enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry));
+}
+void TestGfx() {
+    FARPTR v86_entry = i386LinearToFp(v86GfxMode);
+    enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry));
+    char *vga = jmp_usermode_test();
+    for (int i = 0; i < 320; i++) {
+        vga[i] = i;
+    }
+}
+void TestDiskRead() {
+    FARPTR v86_entry = i386LinearToFp(v86TextMode);
+    enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry));
+    v86_entry = i386LinearToFp(v86DiskRead);
+    enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry));
+    word *vga_text = (word *)0xb8000;
+    char *diskReadBuf = (char *)0x23000;
+    for (int i = 0; i < (80*25)/2; i++) {
+        printByte(diskReadBuf[i], &vga_text[i*2]);
+    }
+}
+void TestFAT() {
+    word *vga_text = (word *)0xb8000;
+    uint8_t *diskReadBuf = (uint8_t *)0x23000;
+    for (int i = 0; i < 80*25; i++)
+        vga_text[i] = 0x0f00;
+    VOLINFO vi;
+
+    uint8_t pactive, ptype;
+    uint32_t pstart, psize;
+    pstart = DFS_GetPtnStart(0, diskReadBuf, 0, &pactive, &ptype, &psize);
+    vga_text = (word *)0xb8000;
+    vga_text += printStr("PartStart: ", vga_text);
+    vga_text += printDword(pstart, vga_text);
+    vga_text += 2;
+    vga_text += printStr("PartSize: ", vga_text);
+    vga_text += printDword(psize, vga_text);
+    vga_text += 2;
+    vga_text += printStr("PartActive: ", vga_text);
+    vga_text += printByte(pactive, vga_text);
+    vga_text += 2;
+    vga_text += printStr("PartType: ", vga_text);
+    vga_text += printByte(ptype, vga_text);
+    vga_text = (word *)((((((uintptr_t)vga_text)-0xb8000) - ((((uintptr_t)vga_text)-0xb8000) % 160)) + 160)+0xb8000);
+
+    DFS_GetVolInfo(0, diskReadBuf, pstart, &vi);
+    vga_text += printStr("Label: ", vga_text);
+    vga_text += printStr((char*)vi.label, vga_text);
+    vga_text += 2;
+    vga_text += printStr("Sec/Clus: ", vga_text);
+    vga_text += printByte(vi.secperclus, vga_text);
+    vga_text += 2;
+    vga_text += printStr("ResrvSec: ", vga_text);
+    vga_text += printWord(vi.reservedsecs, vga_text);
+    vga_text += 2;
+    vga_text += printStr("NumSec: ", vga_text);
+    vga_text += printDword(vi.numsecs, vga_text);
+    vga_text += 2;
+    vga_text += printStr("Sec/FAT: ", vga_text);
+    vga_text += printDword(vi.secperfat, vga_text);
+    vga_text += 2;
+    vga_text += printStr("FAT1@: ", vga_text);
+    vga_text += printDword(vi.fat1, vga_text);
+    vga_text += 2;
+    vga_text += printStr("ROOT@: ", vga_text);
+    vga_text += printDword(vi.rootdir, vga_text);
+    vga_text = (word *)((((((uintptr_t)vga_text)-0xb8000) - ((((uintptr_t)vga_text)-0xb8000) % 160)) + 160)+0xb8000);
+
+    vga_text += printStr("Files in root:", vga_text);
+    vga_text = (word *)((((((uintptr_t)vga_text)-0xb8000) - ((((uintptr_t)vga_text)-0xb8000) % 160)) + 160)+0xb8000);
+    DIRINFO di;
+    DIRENT de;
+    di.scratch = 0x23000;
+    while (!DFS_GetNext(&vi, &di, &de)) {
+        if (de.name[0]) {
+            for (int i = 0; i < 11 && de.name[i]; i++) {
+                *(uint8_t *)vga_text = de.name[i];
+                vga_text++;
+            }
+            vga_text = (word *)((((((uintptr_t)vga_text)-0xb8000) - ((((uintptr_t)vga_text)-0xb8000) % 160)) + 160)+0xb8000);
+        }
+    }
+}
 
 void start() {
     word *vga_text = (word *)0xb8000;
@@ -122,25 +217,14 @@ void start() {
     print_cr0();
     print_cr3();
     print_cr4();
-    FARPTR v86_entry = i386LinearToFp(v86Test);
-    enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry));
-    v86_entry = i386LinearToFp(v86GfxMode);
-    enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry));
-    char *vga = jmp_usermode_test();
     //asm ("xchgw %bx, %bx");
 
-    for (int i = 0; i < 320; i++) {
-        vga[i] = i;
-    }
+    TestV86(); // has int 3 wait in v86
+    TestGfx();
     kbd_wait();
-    v86_entry = i386LinearToFp(v86TextMode);
-    enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry));
-    v86_entry = i386LinearToFp(v86DiskRead);
-    enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry));
-    vga_text = (word *)0xb8000;
-    char *bootloader = (char *)0x23000;
-    for (int i = 0; i < (80*25)/2; i++) {
-        printByte(bootloader[i], &vga_text[i*2]);
-    }
+    TestDiskRead();
+    kbd_wait();
+    TestFAT();
+    kbd_wait();
 }
 

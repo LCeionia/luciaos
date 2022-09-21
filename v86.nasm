@@ -67,18 +67,20 @@ mov si, v86disk_addr_packet ; ds:si
 int 0x13
 int 0x30
 jmp $
+global v86disk_addr_packet
 v86disk_addr_packet:
 db 0x10, 0x00 ; size, reserved
-dw 0x20 ; blocks
+dw 0x1 ; blocks
 dd 0x23000000 ; transfer buffer 0x23000
-dq 0 ; start block
+dq 0x1 ; start block
 [BITS 32]
 ; extern void enter_v86(uint32_t ss, uint32_t esp, uint32_t cs, uint32_t eip);
 global enter_v86
 enter_v86:
-pop eax
-mov ebp, esp               ; save stack pointer
+pop eax ; return address
+mov ecx, esp ; return stack
 call save_current_task
+mov ebp, esp               ; save stack pointer
 push dword  [ebp+0]        ; ss
 push dword  [ebp+4]        ; esp
 pushfd                     ; eflags
