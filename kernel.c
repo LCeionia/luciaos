@@ -143,6 +143,7 @@ void TestFAT() {
     vga_text += printStr("PartType: ", vga_text);
     vga_text += printByte(ptype, vga_text);
     vga_text = (word *)((((((uintptr_t)vga_text)-0xb8000) - ((((uintptr_t)vga_text)-0xb8000) % 160)) + 160)+0xb8000);
+    asm ("xchgw %bx, %bx");
 
     DFS_GetVolInfo(0, diskReadBuf, pstart, &vi);
     vga_text += printStr("Label: ", vga_text);
@@ -166,20 +167,24 @@ void TestFAT() {
     vga_text += printStr("ROOT@: ", vga_text);
     vga_text += printDword(vi.rootdir, vga_text);
     vga_text = (word *)((((((uintptr_t)vga_text)-0xb8000) - ((((uintptr_t)vga_text)-0xb8000) % 160)) + 160)+0xb8000);
+    asm ("xchgw %bx, %bx");
 
     vga_text += printStr("Files in root:", vga_text);
-    vga_text = (word *)((((((uintptr_t)vga_text)-0xb8000) - ((((uintptr_t)vga_text)-0xb8000) % 160)) + 160)+0xb8000);
     DIRINFO di;
+    di.scratch = diskReadBuf;
+    DFS_OpenDir(&vi, (uint8_t*)"", &di);
+    vga_text = (word *)((((((uintptr_t)vga_text)-0xb8000) - ((((uintptr_t)vga_text)-0xb8000) % 160)) + 160)+0xb8000);
     DIRENT de;
-    di.scratch = 0x23000;
     while (!DFS_GetNext(&vi, &di, &de)) {
         if (de.name[0]) {
             for (int i = 0; i < 11 && de.name[i]; i++) {
+                if (i == 8) { *(uint8_t*)vga_text = ' '; vga_text++; } // space for 8.3
                 *(uint8_t *)vga_text = de.name[i];
                 vga_text++;
             }
             vga_text = (word *)((((((uintptr_t)vga_text)-0xb8000) - ((((uintptr_t)vga_text)-0xb8000) % 160)) + 160)+0xb8000);
         }
+        asm ("xchgw %bx, %bx");
     }
 }
 
