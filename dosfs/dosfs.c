@@ -29,6 +29,9 @@ extern void v86DiskRead();
 uint32_t DFS_ReadSector(uint8_t unit, uint8_t *buffer, uint32_t sector, uint32_t count) {
 	v86disk_addr_packet.start_block = sector;
 	v86disk_addr_packet.blocks = count;
+	v86disk_addr_packet.transfer_buffer =
+		(uintptr_t)buffer & 0x000F |
+		(((uintptr_t)buffer & 0xFFFF0) << 12);
     FARPTR v86_entry = i386LinearToFp(v86DiskRead);
     enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry));
 	return 0;

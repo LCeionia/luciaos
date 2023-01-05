@@ -1,4 +1,3 @@
-#pragma once
 #include <stdint.h>
 
 struct interrupt_frame {

@@ -25,3 +25,16 @@ uintptr_t printStr(char *v, uint16_t *buff) {
         *(char*)buff = *s;
     return s - v;
 }
+
+uintptr_t printDec(uint32_t v, uint16_t *buff) {
+    char b[12];
+    char *s = &b[11];
+    if (!v) {
+        *(uint16_t*)&b[10] = '0'; // '0',0x00
+        s = &b[10];
+    } else {
+        *s = 0;
+        for (;v;v/=10) *--s = '0' + v%10;
+    }
+    return printStr(s, buff);
+}

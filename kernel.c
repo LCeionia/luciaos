@@ -122,7 +122,7 @@ void TestDiskRead() {
 }
 void TestFAT() {
     word *vga_text = (word *)0xb8000;
-    uint8_t *diskReadBuf = (uint8_t *)0x23000;
+    uint8_t *diskReadBuf = (uint8_t *)0x22400;
     for (int i = 0; i < 80*25; i++)
         vga_text[i] = 0x0f00;
     VOLINFO vi;
@@ -143,7 +143,7 @@ void TestFAT() {
     vga_text += printStr("PartType: ", vga_text);
     vga_text += printByte(ptype, vga_text);
     vga_text = (word *)((((((uintptr_t)vga_text)-0xb8000) - ((((uintptr_t)vga_text)-0xb8000) % 160)) + 160)+0xb8000);
-    asm ("xchgw %bx, %bx");
+    //asm ("xchgw %bx, %bx");
 
     DFS_GetVolInfo(0, diskReadBuf, pstart, &vi);
     vga_text += printStr("Label: ", vga_text);
@@ -167,7 +167,7 @@ void TestFAT() {
     vga_text += printStr("ROOT@: ", vga_text);
     vga_text += printDword(vi.rootdir, vga_text);
     vga_text = (word *)((((((uintptr_t)vga_text)-0xb8000) - ((((uintptr_t)vga_text)-0xb8000) % 160)) + 160)+0xb8000);
-    asm ("xchgw %bx, %bx");
+    //asm ("xchgw %bx, %bx");
 
     vga_text += printStr("Files in root:", vga_text);
     DIRINFO di;
@@ -182,9 +182,12 @@ void TestFAT() {
                 *(uint8_t *)vga_text = de.name[i];
                 vga_text++;
             }
+            vga_text += printStr("  ", vga_text);
+            vga_text += printDec((uint32_t)de.filesize_0 + ((uint32_t)de.filesize_1 << 8) + ((uint32_t)de.filesize_2 << 16) + ((uint32_t)de.filesize_3 << 24), vga_text);
+            *(uint8_t*)vga_text++ = 'B';
             vga_text = (word *)((((((uintptr_t)vga_text)-0xb8000) - ((((uintptr_t)vga_text)-0xb8000) % 160)) + 160)+0xb8000);
         }
-        asm ("xchgw %bx, %bx");
+        //asm ("xchgw %bx, %bx");
     }
 }
 
