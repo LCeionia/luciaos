@@ -33,7 +33,7 @@ struct __attribute__((__packed__)) tss_entry_struct {
 };
 struct tss_entry_struct *tss_data;
 void write_tss() {
-    tss_data = (struct tss_entry_struct *)0x20000;
+    tss_data = (struct tss_entry_struct *)0x200000;
     for (int i = 0; i < 0x2080; i++)
         ((uint8_t*)tss_data)[i] = 0;
     tss_data->ss0 = 0x10;

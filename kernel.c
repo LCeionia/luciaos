@@ -3,8 +3,8 @@
 #include "dosfs/dosfs.h"
 #include "print.h"
 #include "interrupt.h"
-
 #include "tss.h"
+#include "paging.h"
 
 typedef unsigned short word;
 
@@ -72,29 +72,49 @@ extern char *jmp_usermode_test();
 __attribute((__no_caller_saved_registers__))
 extern void kbd_wait();
 
+extern char _edata, _v86code, _ev86code, _bstart, _bend, _loadusercode, _usercode, _eusercode;
+void setup_binary() {
+    // Put V86 code in proper place based on linker
+    char *s = &_edata;
+    char *d = &_v86code;
+    while (d < &_ev86code)
+        *d++ = *s++;
+
+    // Put Usermode code in proper place based on linker
+    s = &_loadusercode;
+    d = &_usercode;
+    while (d < &_eusercode)
+        *d++ = *s++;
+
+    // Clear BSS area
+    for (d = &_bstart; d < &_bend; d++)
+        *d = 0;
+}
+
 /*
 Real Mode Accessible (First MB)
  00000 -  00400 IVT (1kB)
  00400 -  01000 Unused (3kB)
- 01000 -  04000 Paging (12kB)
+ 01000 -  04000 Free (12kB)
  04000 -  07C00 Free (15kB)
  07C00 -  08000 Boot (512B)
- 08000 -  20000 Kernel Code (96kB)
- 20000 -  20080 TSS (128B)
- 20080 -  22080 TSS IOMAP (8kB)
- 22080 -  22400 Unused (896B)
- 22400 -  23000 Free (3kB)
- 23000 -  30000 Disk Buffer (52kB)
+ 08000 -  20000 V86 Code (96kB)
+ 20000 -  30000 Disk Buffer (64kB)
  30000 -  80000 Free (320kB)
  80000 -  90000 Real Mode Stack (64kB)
  90000 -  A0000 Free (64kB)
- A0000 -  FFFFF BIOS Area (384kB)
+ A0000 -  C0000 VGA (128kB)
+ C0000 -  FFFFF BIOS Area (256kB)
 Protected Only (1MB+)
-100000 - 300000 Free (2mB)
+100000 - 200000 Kernel Code (1mB)
+200000 - 200080 TSS (128B)
+200080 - 202080 TSS IOMAP (8kB)
+202080 - 300000 Free (~1mB)
 300000 - 310000 Task Stack (64kB)
 310000 - 320000 Interrupt Stack (64kB)
 320000 - 400000 Kernel Stack (896kB)
-400000 - 500000 Usermode Stack (1mB)
+400000 - 700000 Usermode Code (3mB)
+700000 - 800000 Usermode Stack (1mB)
 */
 
 void TestV86() {
@@ -218,14 +238,16 @@ void start() {
     if (!sse) return;
     enable_sse();
 
+    setup_binary();
+
     // edit
     setup_interrupts();
     setup_tss();
-    print_flags();
+    init_paging();
+    //print_flags();
     print_cr0();
-    print_cr3();
-    print_cr4();
-    //asm ("xchgw %bx, %bx");
+    //print_cr3();
+    //print_cr4();
 
     TestV86(); // has int 3 wait in v86
     TestGfx();

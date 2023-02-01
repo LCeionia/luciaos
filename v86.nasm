@@ -1,4 +1,5 @@
 [BITS 16]
+[SECTION .v86]
 real_hexprint:
 xor cx, cx
 mov bl, al
@@ -77,23 +78,3 @@ db 0x10, 0x00 ; size, reserved
 dw 0x1 ; blocks
 dd 0x23000000 ; transfer buffer 0x23000
 dq 0x1 ; start block
-
-[BITS 32]
-; extern void enter_v86(uint32_t ss, uint32_t esp, uint32_t cs, uint32_t eip);
-global enter_v86
-enter_v86:
-pop eax ; return address
-mov ecx, esp ; return stack
-call save_current_task
-mov ebp, esp               ; save stack pointer
-push dword  [ebp+0]        ; ss
-push dword  [ebp+4]        ; esp
-pushfd                     ; eflags
-or dword [esp], (1 << 17)  ; set VM flags
-;or dword [esp], (3 << 12) ; IOPL 3
-push dword [ebp+8]        ; cs
-push dword  [ebp+12]       ; eip
-iret
-
-; return address in eax, return stack in ebp
-extern save_current_task

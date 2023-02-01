@@ -9,6 +9,22 @@ mov dword [0xb8008], 0x0f000f00 | 'R' | '!' << 16
 hlt
 jmp .hlt
 
+global pageFaultHandler
+pageFaultHandler:
+mov ax, 0x10
+mov ds, ax
+pop eax ; error code
+mov ebx, 0x0f000f00 | '0' | '!' << 16
+and eax, 0x7 ; U/S,R/W,P
+add ebx, eax
+mov dword [0xb8000], 0x0f000f00 | 'P' | 'G' << 16
+mov dword [0xb8004], 0x0f000f00 | 'F' | 'L' << 16
+mov dword [0xb8008], 0x0f000f00 | 'T' | ':' << 16
+mov dword [0xb800C], ebx
+.hlt:
+hlt
+jmp .hlt
+
 extern gpf_handler_v86
 global gpfHandler
 gpfHandler:

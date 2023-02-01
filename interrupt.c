@@ -237,6 +237,7 @@ void gpf_handler_v86(struct interrupt_frame *frame, unsigned long error_code) {
 extern void timerHandler();
 extern void keyboardHandler();
 extern void gpfHandler();
+extern void pageFaultHandler();
 extern void unhandled_handler();
 extern void picInit();
 void set_system_gate(uint8_t gate, void (*handler)()) {
@@ -272,6 +273,7 @@ void setup_interrupts() {
     set_system_gate(0x21, keyboardHandler);
     //set_trap_gate(13, gpf_handler_v86);
     set_trap_gate(13, gpfHandler);
+    set_trap_gate(14, pageFaultHandler);
 
     asm volatile("lidt %0": : "m"(IDTR));
     picInit();

@@ -1,5 +1,5 @@
-objects = entry.o kernel.o task.o handler.o interrupt.o v86.o print.o tss.o dosfs/dosfs.o
-CFLAGS = -target "i686-elf" -m32 -mgeneral-regs-only -ffreestanding -march=pentium-m -fno-stack-protector -nostdlib -c
+objects = entry.o kernel.o task.o handler.o interrupt.o v86.o print.o tss.o dosfs/dosfs.o gdt.o usermode.o paging.o
+CFLAGS = -target "i686-elf" -m32 -mgeneral-regs-only -ffreestanding -march=pentium-m -fno-stack-protector -Wno-int-conversion -nostdlib -c
 
 %.o: %.nasm
 	nasm -f elf32 -o $@ $<
@@ -9,7 +9,7 @@ CFLAGS = -target "i686-elf" -m32 -mgeneral-regs-only -ffreestanding -march=penti
 
 all: $(objects)
 	nasm boot.nasm -o boot.bin
-	gcc -Tlink.ld -m32 -ffreestanding -nostartfiles -nostdlib -o kernel.bin\
+	gcc -Tlink.ld -Wl,-M -m32 -ffreestanding -nostartfiles -nostdlib -o kernel.bin\
 		$(objects)
 	dd bs=256 count=1 conv=notrunc if=boot.bin of=virtdisk.bin
 	dd bs=512 seek=1 conv=notrunc if=kernel.bin of=virtdisk.bin

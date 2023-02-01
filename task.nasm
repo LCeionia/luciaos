@@ -1,3 +1,9 @@
+global flushTSS
+flushTSS:
+mov ax, 0x28
+ltr ax
+ret
+
 task_ptr: equ (0x310000-4)
 
 ; return address in EAX
@@ -55,4 +61,43 @@ push eax
 mov eax, [edx+12+16] ; ds
 mov ds, ax
 mov eax, ecx ; restore return value
+iret
+
+; extern void enter_v86(uint32_t ss, uint32_t esp, uint32_t cs, uint32_t eip);
+global enter_v86
+enter_v86:
+pop eax ; return address
+mov ecx, esp ; return stack
+call save_current_task
+mov ebp, esp               ; save stack pointer
+push dword  [ebp+0]        ; ss
+push dword  [ebp+4]        ; esp
+pushfd                     ; eflags
+or dword [esp], (1 << 17)  ; set VM flags
+;or dword [esp], (3 << 12) ; IOPL 3
+push dword [ebp+8]        ; cs
+push dword  [ebp+12]       ; eip
+iret
+
+; return address in eax, return stack in ebp
+;extern save_current_task
+
+extern user_test
+global jmp_usermode_test
+jmp_usermode_test:
+pop eax ; return address
+mov ecx, esp ; return stack
+call save_current_task
+mov esp, 0x800000 ; usermode stack
+mov eax, 0x20 | 3
+mov ds, ax
+mov es, ax
+mov fs, ax
+mov gs, ax
+mov eax, esp
+push 0x20 | 3
+push eax
+pushfd
+push 0x18 | 3
+push user_test
 iret
