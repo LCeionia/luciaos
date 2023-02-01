@@ -32,25 +32,25 @@ void enable_sse() {
     );
 }
 
-void print_flags() {
+uint32_t get_flags() {
     uint32_t flags;
     asm volatile("pushfd\npop %%eax":"=a"(flags));
-    printDword(flags, 0xB8000 + (160*4) + 50);
+    return flags;
 }
-void print_cr0() {
+uint32_t get_cr0() {
     uint32_t reg;
     asm volatile("mov %%cr0, %%eax":"=a"(reg));
-    printDword(reg, 0xB8000 + (160*5) + 50);
+    return reg;
 }
-void print_cr3() {
+uint32_t get_cr3() {
     uint32_t reg;
     asm volatile("mov %%cr3, %%eax":"=a"(reg));
-    printDword(reg, 0xB8000 + (160*5) + 50 + 8*2 + 2);
+    return reg;
 }
-void print_cr4() {
+uint32_t get_cr4() {
     uint32_t reg;
     asm volatile("mov %%cr4, %%eax":"=a"(reg));
-    printDword(reg, 0xB8000 + (160*5) + 50 + 8*4 + 4);
+    return reg;
 }
 
 struct __attribute((__packed__)) Int13DiskPacket_t {
@@ -77,8 +77,8 @@ void setup_binary() {
     // Put V86 code in proper place based on linker
     char *s = &_edata;
     char *d = &_v86code;
-    while (d < &_ev86code)
-        *d++ = *s++;
+    //while (d < &_ev86code)
+    //    *d++ = *s++;
 
     // Put Usermode code in proper place based on linker
     s = &_loadusercode;
@@ -130,11 +130,14 @@ void TestGfx() {
     }
 }
 void TestDiskRead() {
+    word *vga_text = (word *)0xb8000 + (80*5);
+    vga_text += printStr("Setting Text Mode... ", vga_text);
     FARPTR v86_entry = i386LinearToFp(v86TextMode);
     enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry));
+    vga_text += printStr("Done. Starting Disk Read... ", vga_text);
     v86_entry = i386LinearToFp(v86DiskRead);
     enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry));
-    word *vga_text = (word *)0xb8000;
+    vga_text = (word *)0xb8000;
     char *diskReadBuf = (char *)0x23000;
     for (int i = 0; i < (80*25)/2; i++) {
         printByte(diskReadBuf[i], &vga_text[i*2]);
@@ -216,12 +219,15 @@ void start() {
     char h[] = "LuciaOS";
     for (int i = 0; i < sizeof(h); i++)
         *(char *)&vga_text[i] = h[i];
+    vga_text = &vga_text[80];
 
     uint32_t o;
     asm("mov %%esp, %%eax" : "=a"(o) : :);
-    printDword(o, (uint16_t *)&vga_text[80]);
+    vga_text += printDword(o, vga_text);
+    vga_text++;
     asm("mov %%ebp, %%eax" : "=a"(o) : :);
-    printDword(o, (uint16_t *)&vga_text[160]);
+    vga_text += printDword(o, vga_text);
+    vga_text++;
 
     //char c[] = "APIC support: ";
     //char apic;
@@ -231,11 +237,13 @@ void start() {
     //if (!apic) return;
 
     char sse_str[] = "SSE support: ";
-    char sse;
-    printByte(sse = check_sse(), (uint16_t*)&vga_text[80*4 + sizeof(sse_str) - 1]);
-    for (int i = 0; i < sizeof(sse_str); i++)
-        *(char *)&vga_text[i+(80*4)] = sse_str[i];
-    if (!sse) return;
+    vga_text += printStr("SSE: ", vga_text);
+    char sse = check_sse();
+    if (!sse) {
+        *vga_text = 'N';
+        return;
+    }
+    vga_text += printStr("Y ", vga_text);
     enable_sse();
 
     setup_binary();
@@ -245,11 +253,16 @@ void start() {
     setup_tss();
     init_paging();
     //print_flags();
-    print_cr0();
+    vga_text += printStr("CR0:", vga_text);
+    vga_text += printDword(get_cr0(), vga_text);
+    vga_text++;
     //print_cr3();
     //print_cr4();
 
+    vga_text += printStr("V86 Test... ", vga_text);
     TestV86(); // has int 3 wait in v86
+    vga_text = (word *)0xb8000 + (80*3);
+    printStr("Done. Press any key for next test.", vga_text);
     TestGfx();
     kbd_wait();
     TestDiskRead();

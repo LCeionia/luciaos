@@ -32,12 +32,22 @@ mov cr0, eax
 jmp 08h:Pmode
 [BITS 32]
 Pmode:
-mov ax, 0x10
+mov eax, 0x10
 mov ds, ax
 mov es, ax
+mov fs, ax
+mov gs, ax
+mov ss, ax
+in al, 0x92
+test al, 2
+jnz after
+or al, 2
+and al, 0xFE
+out 0x92, al
+after:
 mov esi, 0x8000
 mov edi, 0x100000
-mov ecx, 0x10000
+mov ecx, 17000
 rep movsb
 jmp 08h:0x100000
 gdt_desc:

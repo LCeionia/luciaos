@@ -159,3 +159,103 @@ jmp $+2
 jmp $+2
 out 0xA1, al
 ret
+
+global divisionErrorHandler
+divisionErrorHandler:
+mov ax, 0x10
+mov ds, ax
+mov dword [0xb8000], 0x0f000f00 | '#' | 'D' << 16
+mov dword [0xb8004], 0x0f000f00 | 'E' | '!' << 16
+.hlt:
+hlt
+jmp .hlt
+global boundRangeHandler
+boundRangeHandler:
+mov ax, 0x10
+mov ds, ax
+mov dword [0xb8000], 0x0f000f00 | '#' | 'B' << 16
+mov dword [0xb8004], 0x0f000f00 | 'R' | '!' << 16
+.hlt:
+hlt
+jmp .hlt
+global invalidOpcodeHandler
+invalidOpcodeHandler:
+mov ax, 0x10
+mov ds, ax
+mov dword [0xb8000], 0x0f000f00 | '#' | 'U' << 16
+mov dword [0xb8004], 0x0f000f00 | 'D' | '!' << 16
+.hlt:
+hlt
+jmp .hlt
+global deviceNotAvailableHandler
+deviceNotAvailableHandler:
+mov ax, 0x10
+mov ds, ax
+mov dword [0xb8000], 0x0f000f00 | '#' | 'N' << 16
+mov dword [0xb8004], 0x0f000f00 | 'D' | '!' << 16
+.hlt:
+hlt
+jmp .hlt
+global doubleFaultHandler
+doubleFaultHandler:
+mov ax, 0x10
+mov ds, ax
+mov dword [0xb8000], 0x0f000f00 | '#' | 'D' << 16
+mov dword [0xb8004], 0x0f000f00 | 'F' | '!' << 16
+.hlt:
+hlt
+jmp .hlt
+global invalidTSSHandler
+invalidTSSHandler:
+mov ax, 0x10
+mov ds, ax
+mov dword [0xb8000], 0x0f000f00 | '#' | 'T' << 16
+mov dword [0xb8004], 0x0f000f00 | 'S' | '!' << 16
+.hlt:
+hlt
+jmp .hlt
+global segmentNotPresentHandler
+segmentNotPresentHandler:
+mov ax, 0x10
+mov ds, ax
+mov dword [0xb8000], 0x0f000f00 | '#' | 'N' << 16
+mov dword [0xb8004], 0x0f000f00 | 'P' | '!' << 16
+.hlt:
+hlt
+jmp .hlt
+global stackSegmentHandler
+stackSegmentHandler:
+mov ax, 0x10
+mov ds, ax
+mov dword [0xb8000], 0x0f000f00 | '#' | 'S' << 16
+mov dword [0xb8004], 0x0f000f00 | 'S' | '!' << 16
+.hlt:
+hlt
+jmp .hlt
+global x87FloatingHandler
+x87FloatingHandler:
+mov ax, 0x10
+mov ds, ax
+mov dword [0xb8000], 0x0f000f00 | '#' | 'M' << 16
+mov dword [0xb8004], 0x0f000f00 | 'F' | '!' << 16
+.hlt:
+hlt
+jmp .hlt
+global alignmentCheckHandler
+alignmentCheckHandler:
+mov ax, 0x10
+mov ds, ax
+mov dword [0xb8000], 0x0f000f00 | '#' | 'A' << 16
+mov dword [0xb8004], 0x0f000f00 | 'C' | '!' << 16
+.hlt:
+hlt
+jmp .hlt
+global controlProtectionHandler
+controlProtectionHandler:
+mov ax, 0x10
+mov ds, ax
+mov dword [0xb8000], 0x0f000f00 | '#' | 'C' << 16
+mov dword [0xb8004], 0x0f000f00 | 'P' | '!' << 16
+.hlt:
+hlt
+jmp .hlt

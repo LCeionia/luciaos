@@ -41,9 +41,6 @@ call real_printword
 add di, 2
 mov ax, cs
 call real_printword
-.loop:
-inc byte [0]
-int 3
 int 3
 int 0x30 ; exit
 jmp $

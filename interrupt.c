@@ -182,6 +182,8 @@ void gpf_handler_v86(struct interrupt_frame *frame, unsigned long error_code) {
                         for(;;);
                     case 0x3:
                         kbd_wait();
+                        frame->eip = (uint16_t) (frame->eip + 2);
+                        break;
                     default:
                         stack = &stack[-3];
                         frame->esp = ((frame->esp & 0xffff) - 6) & 0xffff;
@@ -239,6 +241,17 @@ extern void keyboardHandler();
 extern void gpfHandler();
 extern void pageFaultHandler();
 extern void unhandled_handler();
+extern void divisionErrorHandler();
+extern void boundRangeHandler();
+extern void invalidOpcodeHandler();
+extern void deviceNotAvailableHandler();
+extern void doubleFaultHandler();
+extern void invalidTSSHandler();
+extern void segmentNotPresentHandler();
+extern void stackSegmentHandler();
+extern void x87FloatingHandler();
+extern void alignmentCheckHandler();
+extern void controlProtectionHandler();
 extern void picInit();
 void set_system_gate(uint8_t gate, void (*handler)()) {
     IDT[gate].offset_1 = (uint32_t)(size_t)handler & 0xFFFF;
@@ -274,6 +287,18 @@ void setup_interrupts() {
     //set_trap_gate(13, gpf_handler_v86);
     set_trap_gate(13, gpfHandler);
     set_trap_gate(14, pageFaultHandler);
+
+	set_trap_gate(0, divisionErrorHandler);
+	set_trap_gate(5, boundRangeHandler);
+	set_trap_gate(6, invalidOpcodeHandler);
+	set_trap_gate(7, deviceNotAvailableHandler);
+	set_trap_gate(8, doubleFaultHandler);
+	set_trap_gate(10, invalidTSSHandler);
+	set_trap_gate(11, segmentNotPresentHandler);
+	set_trap_gate(12, stackSegmentHandler);
+	set_trap_gate(16, x87FloatingHandler);
+	set_trap_gate(17, alignmentCheckHandler);
+	set_trap_gate(21, controlProtectionHandler);
 
     asm volatile("lidt %0": : "m"(IDTR));
     picInit();

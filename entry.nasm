@@ -1,7 +1,7 @@
 global entry
 entry:
 lgdt [gdt_desc]  ; load gdt register
-jmp Pmodecode
+jmp 08h:Pmodecode
 
 extern gdt_desc
 
