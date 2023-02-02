@@ -58,7 +58,8 @@ call get_key
 jmp .return_to_offender
 .s1: cmp al, 0x10 ; set video mode
 jne .return_to_offender
-add dword [esp+4], 2
+add esp, 4
+add dword [esp+0], 2
 ; add a new task
 call _gpf_create_return_task
 ; now enter v86 mode
