@@ -14,6 +14,106 @@ call error_environment
 hlt
 jmp .hlt
 
+extern gpf_handler_v86
+global gpfHandler
+gpfHandler:
+push eax
+push ebx
+mov bx, ds
+mov ax, 0x10
+mov ds, ax
+mov word [_gpf_old_ds], bx
+pop ebx
+mov eax, dword [esp+16] ; EFLAGS
+and eax, 1 << 17 ; VM flag
+test eax, eax
+pop eax
+jnz gpf_handler_v86
+jmp gpf_handler_32
+gpf_unhandled:
+mov dword [error_screen+0x00], 0x0f000f00 | 'G' | 'P' << 16
+mov dword [error_screen+0x04], 0x0f000f00 | 'F' | '!' << 16
+jmp _fault_coda
+
+_gpf_old_ds: dw 0
+extern get_key
+extern task_ptr
+extern _enter_v86_internal_no_task
+extern return_prev_task
+extern v86GfxMode
+gpf_handler_32:
+push eax
+mov eax, dword [esp+8] ; EIP
+movzx eax, word [eax]
+cmp eax, 0x30CD ; int 0x30
+je .int30
+cmp eax, 0x21CD ; int 0x21
+je .int21
+jmp gpf_unhandled
+.int21:
+pop eax ; command
+cmp al, 0x00 ; get key
+jne .s1
+call get_key
+jmp .return_to_offender
+.s1: cmp al, 0x10 ; set video mode
+jne .return_to_offender
+add dword [esp+4], 2
+; add a new task
+call _gpf_create_return_task
+; now enter v86 mode
+; push args
+mov eax, v86GfxMode
+and eax, 0xffff
+push eax ; ip
+mov eax, v86GfxMode
+shr eax, 16
+push eax ; cs
+push 0xFF00 ; sp
+push 0x8000 ; ss
+jmp _enter_v86_internal_no_task ; NOT a function call
+.int30:
+pop eax ; return value
+jmp return_prev_task
+.return_to_offender:
+add dword [esp+4], 2
+push eax
+mov ax, word [_gpf_old_ds]
+mov ds, ax
+pop eax
+add esp, 4 ; error code
+iret
+
+_gpf_create_return_task:
+; handler stack stored in edx
+mov edx, esp
+mov esp, dword [task_ptr]
+mov eax, [edx+20] ; ss
+push eax
+mov eax, [edx+16] ; esp
+push eax
+mov eax, [edx+12] ; eflags
+push eax
+mov eax, [edx+8] ; cs
+push eax
+mov eax, [edx+4] ; eip
+push eax
+mov ax, word [_gpf_old_ds] ; restore old ds
+mov ds, ax
+push ds
+push es
+push fs
+push gs
+push ebp
+push ebx
+push esi
+push edi
+mov ax, 0x10
+mov ds, ax
+mov dword [task_ptr], esp ; save new task pointer
+mov esp, edx ; restore handler stack
+ret
+
 global unhandled_handler
 unhandled_handler:
 mov ax, 0x10
@@ -37,33 +137,6 @@ mov dword [error_screen+0x08], 0x0f000f00 | 'T' | ':' << 16
 mov dword [error_screen+0x0C], ebx
 jmp _fault_coda
 
-extern gpf_handler_v86
-global gpfHandler
-gpfHandler:
-push eax
-mov ax, 0x10
-mov ds, ax
-mov eax, dword [esp+16] ; EFLAGS
-and eax, 1 << 17 ; VM flag
-test eax, eax
-pop eax
-jnz gpf_handler_v86
-jmp gpf_handler_32
-gpf_unhandled:
-mov dword [error_screen+0x00], 0x0f000f00 | 'G' | 'P' << 16
-mov dword [error_screen+0x04], 0x0f000f00 | 'F' | '!' << 16
-jmp _fault_coda
-
-gpf_handler_32:
-push eax
-mov eax, dword [esp+8] ; EIP
-movzx eax, word [eax]
-cmp eax, 0x30CD ; int 0x30
-jne gpf_unhandled
-pop eax ; return value
-jmp return_prev_task
-
-extern return_prev_task
 
 global divisionErrorHandler
 divisionErrorHandler:

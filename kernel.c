@@ -112,7 +112,8 @@ void ensure_v86env() {
     while (d < &_ev86code)
         *d++ = *s++;
     for (int i = 0; i < 80*50; i++)
-        if (!error_screen[i]) error_screen[i] = 0x0f00;
+        if (!(error_screen[i] & 0xFF00))
+            error_screen[i] = 0x0f00 | (error_screen[i] & 0x00FF);
 }
 
 void error_environment() {
@@ -155,9 +156,7 @@ void TestV86() {
     FARPTR v86_entry = i386LinearToFp(v86Test);
     enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry));
 }
-void TestGfx() {
-    FARPTR v86_entry = i386LinearToFp(v86GfxMode);
-    enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry));
+void TestUser() {
     char *vga = jmp_usermode_test();
     for (int i = 0; i < 320; i++) {
         vga[i] = i;
@@ -304,7 +303,7 @@ void start() {
         *vga_text = (*vga_text & 0xFF00) | key;
         vga_text++;
     }
-    TestGfx();
+    TestUser();
     kbd_wait();
     TestDiskRead();
     kbd_wait();

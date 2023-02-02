@@ -4,6 +4,7 @@ mov ax, 0x28
 ltr ax
 ret
 
+global task_ptr
 task_ptr: equ (0x310000-4)
 
 ; return address in EAX
@@ -49,6 +50,16 @@ mov fs, ax
 mov eax, [edx+8+16] ; es
 mov es, ax
 ; SS:ESP <- return stack
+push ecx
+mov eax, [edx+32+16] ; ss
+mov ecx, [edx+20+16] ; cs
+and eax, 3
+and ecx, 3
+or eax, ecx
+pop ecx
+cmp eax, 3
+je .ret_stack
+.ret_no_stack:
 mov esp, [edx+28+16] ; esp
 mov eax, [edx+32+16] ; ss
 mov ss, ax
@@ -62,13 +73,30 @@ mov eax, [edx+12+16] ; ds
 mov ds, ax
 mov eax, ecx ; restore return value
 iret
+.ret_stack:
+mov eax, [edx+32+16] ; ss
+push eax
+mov eax, [edx+28+16] ; esp
+push eax
+mov eax, [edx+24+16] ; eflags
+push eax
+mov eax, [edx+20+16] ; cs
+push eax
+mov eax, [edx+16+16] ; eip
+push eax
+mov eax, [edx+12+16] ; ds
+mov ds, ax
+mov eax, ecx ; restore return value
+iret
 
 ; extern void enter_v86(uint32_t ss, uint32_t esp, uint32_t cs, uint32_t eip);
 global enter_v86
+global _enter_v86_internal_no_task
 enter_v86:
 pop eax ; return address
 mov ecx, esp ; return stack
 call save_current_task
+_enter_v86_internal_no_task:
 mov ebp, esp               ; save stack pointer
 push dword  [ebp+0]        ; ss
 push dword  [ebp+4]        ; esp

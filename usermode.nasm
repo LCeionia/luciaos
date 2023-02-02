@@ -6,6 +6,10 @@ mov dword [0xb8004], 0x0f000f00 | 'e' | 'r' << 16
 mov dword [0xb8008], 0x0f000f00 | 'm' | 'o' << 16
 mov dword [0xb800C], 0x0f000f00 | 'd' | 'e' << 16
 mov word [0xb8010], 0x0f00 | '!'
+mov eax, 0 ; command = 00, get key
+int 0x21 ; OS call
+mov eax, 0x00030010 ; command = 10, set video mode 3
+int 0x21 ; OS call
 mov edi, 0xA0000
 xor eax, eax
 .loop:
