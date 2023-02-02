@@ -15,7 +15,7 @@ SECTIONS {
         _edata = .;
     }
 
-    .realmode 0x8000 :
+    .realmode 0x4000 :
         AT ( ADDR(.data) + SIZEOF(.data) )
         { _v86code = .; *(.v86); _ev86code = .; }
 

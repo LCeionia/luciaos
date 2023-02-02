@@ -8,7 +8,14 @@ mov dword [0xb800C], 0x0f000f00 | 'd' | 'e' << 16
 mov word [0xb8010], 0x0f00 | '!'
 mov eax, 0 ; command = 00, get key
 int 0x21 ; OS call
-mov eax, 0x00030010 ; command = 10, set video mode 3
+push 0x00000013 ; eax  AH=0,AL=3 set video mode 3
+push 0x00000000 ; ecx
+push 0x00000000 ; edx
+push 0x00000000 ; ebx
+push 0x00000000 ; esi
+push 0x00000000 ; edi
+push esp ; regs
+mov eax, 0x10 ; command = 10
 int 0x21 ; OS call
 mov edi, 0xA0000
 xor eax, eax

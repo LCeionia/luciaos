@@ -5,6 +5,7 @@
 #include "interrupt.h"
 #include "tss.h"
 #include "paging.h"
+#include "v86defs.h"
 
 typedef unsigned short word;
 
@@ -53,22 +54,6 @@ uint32_t get_cr4() {
     return reg;
 }
 
-struct __attribute((__packed__)) Int13DiskPacket_t {
-    uint8_t size; // 0x10
-    uint8_t reserved; // 0x00
-    uint16_t blocks;
-    uint32_t transfer_buffer; // 0x2300:0000
-    uint64_t start_block;
-};
-
-extern struct Int13DiskPacket_t v86disk_addr_packet;
-
-extern void enter_v86(uint32_t ss, uint32_t esp, uint32_t cs, uint32_t eip);
-extern void v86Test();
-extern void v86TransFlag();
-extern void v86GfxMode();
-extern void v86TextMode();
-extern void v86DiskRead();
 extern char *jmp_usermode_test();
 
 extern char _edata, _v86code, _ev86code, _bstart, _bend, _loadusercode, _usercode, _eusercode;
@@ -119,8 +104,9 @@ void ensure_v86env() {
 
 void error_environment() {
     ensure_v86env();
+    union V86Regs_t regs;
     FARPTR v86_entry = i386LinearToFp(v86TextMode);
-    enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry));
+    enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry), &regs);
     printStr("Oh noes!!! System error! ;c    Press E for a fun recovery :3", &error_screen[80]);
     uint16_t *vga_text = ((uint16_t*)0xB8000);
     for (int i = 0; i < 80*50; i++)
@@ -128,7 +114,7 @@ void error_environment() {
     uint8_t key;
     for (key = get_key(); key != 'e' && key != 'E'; key = get_key());
     v86_entry = i386LinearToFp(v86TransFlag);
-    enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry));
+    enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry), &regs);
 }
 
 /*
@@ -136,8 +122,8 @@ Real Mode Accessible (First MB)
  00000 -  00400 IVT (1kB)
  00400 -  01000 Unused (3kB)
  01000 -  04000 Free (12kB)
- 04000 -  07C00 Free (15kB)
- 07C00 -  08000 Boot (512B)
+ 04000 -  07C00 V86 Code (15kB)
+ 07C00 -  08000 Boot & V86 Code (512B)
  08000 -  20000 V86 Code (96kB)
  20000 -  30000 Disk Buffer (64kB)
  30000 -  80000 Free (320kB)
@@ -158,8 +144,15 @@ Protected Only (1MB+)
 */
 
 void TestV86() {
+    union V86Regs_t regs;
+    regs.d.edi = 0x11111111;
+    regs.d.esi = 0x22222222;
+    regs.d.ebx = 0x33333333;
+    regs.d.edx = 0x44444444;
+    regs.d.ecx = 0x55555555;
+    regs.d.eax = 0x66666666;
     FARPTR v86_entry = i386LinearToFp(v86Test);
-    enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry));
+    enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry), &regs);
 }
 void TestUser() {
     char *vga = jmp_usermode_test();
@@ -168,13 +161,15 @@ void TestUser() {
     }
 }
 void TestDiskRead() {
+    union V86Regs_t regs;
     word *vga_text = (word *)0xb8000 + (80*5);
     vga_text += printStr("Setting Text Mode... ", vga_text);
-    FARPTR v86_entry = i386LinearToFp(v86TextMode);
-    enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry));
+    regs.w.ax = 3; // text mode
+    FARPTR v86_entry = i386LinearToFp(v86VideoInt);
+    enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry), &regs);
     vga_text += printStr("Done. Starting Disk Read... ", vga_text);
     v86_entry = i386LinearToFp(v86DiskRead);
-    enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry));
+    enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry), &regs);
     vga_text = (word *)0xb8000;
     char *diskReadBuf = (char *)0x23000;
     for (int i = 0; i < (80*25)/2; i++) {

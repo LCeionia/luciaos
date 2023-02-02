@@ -11,19 +11,7 @@
 #include "dosfs.h"
 #include "tmpstring.c"
 #include "../interrupt.h"
-
-struct __attribute((__packed__)) Int13DiskPacket_t {
-    uint8_t size; // 0x10
-    uint8_t reserved; // 0x00
-    uint16_t blocks;
-    uint32_t transfer_buffer; // 0x2300:0000
-    uint64_t start_block;
-};
-
-extern struct Int13DiskPacket_t v86disk_addr_packet;
-
-extern void enter_v86(uint32_t ss, uint32_t esp, uint32_t cs, uint32_t eip);
-extern void v86DiskRead();
+#include "../v86defs.h"
 
 // all reading at 0x23000 - be careful!
 uint32_t DFS_ReadSector(uint8_t unit, uint8_t *buffer, uint32_t sector, uint32_t count) {
@@ -32,8 +20,9 @@ uint32_t DFS_ReadSector(uint8_t unit, uint8_t *buffer, uint32_t sector, uint32_t
 	v86disk_addr_packet.transfer_buffer =
 		(uintptr_t)buffer & 0x000F |
 		(((uintptr_t)buffer & 0xFFFF0) << 12);
+	union V86Regs_t regs;
     FARPTR v86_entry = i386LinearToFp(v86DiskRead);
-    enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry));
+    enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry), &regs);
 	return 0;
 }
 uint32_t DFS_WriteSector(uint8_t unit, uint8_t *buffer, uint32_t sector, uint32_t count) {

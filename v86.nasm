@@ -84,6 +84,12 @@ int 0x10
 int 0x30
 jmp $
 
+global v86VideoInt
+v86VideoInt:
+int 0x10
+int 0x30
+jmp $
+
 global v86DiskRead
 v86DiskRead:
 xor ax, ax ; TODO fix assuming we're in first 64k

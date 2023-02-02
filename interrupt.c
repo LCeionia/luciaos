@@ -51,7 +51,7 @@ FARPTR i386LinearToFp(void *ptr)
 {
     unsigned seg, off;
     off = (uintptr_t) ptr & 0xffff;
-    seg = ((uintptr_t) ptr >> 16);
+    seg = ((uintptr_t) ptr >> 4) & 0xf000;
     return MK_FP(seg, off);
 }
 

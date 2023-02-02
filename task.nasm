@@ -89,7 +89,7 @@ mov ds, ax
 mov eax, ecx ; restore return value
 iret
 
-; extern void enter_v86(uint32_t ss, uint32_t esp, uint32_t cs, uint32_t eip);
+; extern void enter_v86(uint32_t ss, uint32_t esp, uint32_t cs, uint32_t eip, union V86Regs_t *regs);
 global enter_v86
 global _enter_v86_internal_no_task
 enter_v86:
@@ -98,6 +98,17 @@ mov ecx, esp ; return stack
 call save_current_task
 _enter_v86_internal_no_task:
 mov ebp, esp               ; save stack pointer
+mov eax, dword [ebp+16] ; regs
+test eax, eax
+jz .no_regs
+; load regs: edi, esi, ebx, edx, ecx, eax
+mov edi, dword [eax+0]
+mov esi, dword [eax+4]
+mov ebx, dword [eax+8]
+mov edx, dword [eax+12]
+mov ecx, dword [eax+16]
+mov eax, dword [eax+20]
+.no_regs:
 push dword  [ebp+0]        ; ss
 push dword  [ebp+4]        ; esp
 pushfd                     ; eflags
