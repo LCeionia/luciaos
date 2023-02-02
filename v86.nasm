@@ -45,6 +45,31 @@ int 3
 int 0x30 ; exit
 jmp $
 
+global v86TransFlag
+v86TransFlag:
+push cs
+pop es
+mov ax, 0x13
+int 0x10
+mov ax,0x1012
+xor bx,bx
+mov cx,5
+mov dx,.c
+int 0x10
+push 0xa000
+pop es
+xor di,di
+xor ax,ax
+.loop:
+mov cx, 12800
+rep stosb
+inc ax
+cmp ax,5
+jl .loop
+int 0x30
+jmp $
+.c: db `\0263>=*.\?\?\?=*.\0263>`
+
 global v86GfxMode
 v86GfxMode:
 mov ax, 0x13

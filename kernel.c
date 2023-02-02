@@ -65,6 +65,7 @@ extern struct Int13DiskPacket_t v86disk_addr_packet;
 
 extern void enter_v86(uint32_t ss, uint32_t esp, uint32_t cs, uint32_t eip);
 extern void v86Test();
+extern void v86TransFlag();
 extern void v86GfxMode();
 extern void v86TextMode();
 extern void v86DiskRead();
@@ -120,10 +121,14 @@ void error_environment() {
     ensure_v86env();
     FARPTR v86_entry = i386LinearToFp(v86TextMode);
     enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry));
-    printStr("Oh noes!!! System error! ;c", &error_screen[80]);
+    printStr("Oh noes!!! System error! ;c    Press E for a fun recovery :3", &error_screen[80]);
     uint16_t *vga_text = ((uint16_t*)0xB8000);
     for (int i = 0; i < 80*50; i++)
         vga_text[i] = error_screen[i];
+    uint8_t key;
+    for (key = get_key(); key != 'e' && key != 'E'; key = get_key());
+    v86_entry = i386LinearToFp(v86TransFlag);
+    enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry));
 }
 
 /*
