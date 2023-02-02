@@ -69,16 +69,14 @@ extern void v86GfxMode();
 extern void v86TextMode();
 extern void v86DiskRead();
 extern char *jmp_usermode_test();
-__attribute((__no_caller_saved_registers__))
-extern void kbd_wait();
 
 extern char _edata, _v86code, _ev86code, _bstart, _bend, _loadusercode, _usercode, _eusercode;
 void setup_binary() {
     // Put V86 code in proper place based on linker
     char *s = &_edata;
     char *d = &_v86code;
-    //while (d < &_ev86code)
-    //    *d++ = *s++;
+    while (d < &_ev86code)
+        *d++ = *s++;
 
     // Put Usermode code in proper place based on linker
     s = &_loadusercode;
@@ -89,6 +87,42 @@ void setup_binary() {
     // Clear BSS area
     for (d = &_bstart; d < &_bend; d++)
         *d = 0;
+}
+
+uint16_t error_screen[80*50]; // 50-line VGA screen of error content
+
+extern uint16_t *ivt;
+uint16_t ivt_bkup[0x200];
+uint8_t bios_bkup[0x40000];
+void backup_ivtbios() {
+    for (int i = 0; i < 0x200; i++)
+        ivt_bkup[i] = ivt[i];
+    for (int i = 0; i < 0x40000; i++)
+        bios_bkup[i] = ((uint8_t*)0xC0000)[i];
+}
+
+// This should only be used during fault handling, as it is expensive
+void ensure_v86env() {
+    for (int i = 0; i < 0x200; i++)
+        ivt[i] = ivt_bkup[i];
+    for (int i = 0; i < 0x40000; i++)
+        ((uint8_t*)0xC0000)[i] = bios_bkup[i];
+    char *s = &_edata;
+    char *d = &_v86code;
+    while (d < &_ev86code)
+        *d++ = *s++;
+    for (int i = 0; i < 80*50; i++)
+        if (!error_screen[i]) error_screen[i] = 0x0f00;
+}
+
+void error_environment() {
+    ensure_v86env();
+    FARPTR v86_entry = i386LinearToFp(v86TextMode);
+    enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry));
+    printStr("Oh noes!!! System error! ;c", &error_screen[80]);
+    uint16_t *vga_text = ((uint16_t*)0xB8000);
+    for (int i = 0; i < 80*50; i++)
+        vga_text[i] = error_screen[i];
 }
 
 /*
@@ -260,14 +294,30 @@ void start() {
     //print_cr4();
 
     vga_text += printStr("V86 Test... ", vga_text);
+    //asm ("xchgw %bx, %bx");
     TestV86(); // has int 3 wait in v86
     vga_text = (word *)0xb8000 + (80*3);
-    printStr("Done. Press any key for next test.", vga_text);
+    backup_ivtbios();
+    vga_text += printStr("Done. Press 'N' for next test.", vga_text);
+    uint8_t key;
+    while ((key = get_key()) != 'N') {
+        *vga_text = (*vga_text & 0xFF00) | key;
+        vga_text++;
+    }
     TestGfx();
     kbd_wait();
     TestDiskRead();
     kbd_wait();
     TestFAT();
     kbd_wait();
+
+    vga_text = &((uint16_t*)0xB8000)[80*16];
+    vga_text += printStr("Press ` for a flagrant system error... ", vga_text);
+    while ((key = get_key()) != '`') {
+        *vga_text = (*vga_text & 0xFF00) | key;
+        vga_text++;
+    }
+    // flagrant system error
+    *((uint8_t*)0x1000000) = 0;
 }
 

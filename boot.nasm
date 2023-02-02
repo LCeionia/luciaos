@@ -47,7 +47,7 @@ out 0x92, al
 after:
 mov esi, 0x8000
 mov edi, 0x100000
-mov ecx, 17000
+mov ecx, 0x10000
 rep movsb
 jmp 08h:0x100000
 gdt_desc:

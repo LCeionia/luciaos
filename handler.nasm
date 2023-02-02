@@ -1,61 +1,4 @@
-extern unhandled_handler
-unhandled_handler:
-mov ax, 0x10
-mov ds, ax
-mov dword [0xb8000], 0x0f000f00 | 'E' | 'R' << 16
-mov dword [0xb8004], 0x0f000f00 | 'R' | 'O' << 16
-mov dword [0xb8008], 0x0f000f00 | 'R' | '!' << 16
-.hlt:
-hlt
-jmp .hlt
-
-global pageFaultHandler
-pageFaultHandler:
-mov ax, 0x10
-mov ds, ax
-pop eax ; error code
-mov ebx, 0x0f000f00 | '0' | '!' << 16
-and eax, 0x7 ; U/S,R/W,P
-add ebx, eax
-mov dword [0xb8000], 0x0f000f00 | 'P' | 'G' << 16
-mov dword [0xb8004], 0x0f000f00 | 'F' | 'L' << 16
-mov dword [0xb8008], 0x0f000f00 | 'T' | ':' << 16
-mov dword [0xb800C], ebx
-.hlt:
-hlt
-jmp .hlt
-
-extern gpf_handler_v86
-global gpfHandler
-gpfHandler:
-push eax
-mov ax, 0x10
-mov ds, ax
-mov eax, dword [esp+16] ; EFLAGS
-and eax, 1 << 17 ; VM flag
-test eax, eax
-pop eax
-jnz gpf_handler_v86
-jmp gpf_handler_32
-gpf_unhandled:
-mov dword [0xb8000], 0x0f000f00 | 'G' | 'P' << 16
-mov dword [0xb8004], 0x0f000f00 | 'F' | '!' << 16
-.hlt:
-hlt
-jmp .hlt
-
-gpf_handler_32:
-push eax
-mov eax, dword [esp+8] ; EIP
-movzx eax, word [eax]
-cmp eax, 0x30CD ; int 0x30
-jne gpf_unhandled
-pop eax ; return value
-jmp return_prev_task
-
-extern return_prev_task
-
-scancodesToAscii: db 0, 0 ; 0x00 - 0x01
+oldscancodesToAscii: db 0, 0 ; 0x00 - 0x01
 db "1234567890" ; 0x02 - 0x0B
 db "-=" ; 0x0C - 0x0D
 db 0, 0 ; 0x0E - 0x0F
@@ -71,8 +14,8 @@ db ' ' ; 0x39
 db 'C'
 scancodesToAsciiEnd:
 cursorCurrent: dd 0xb8000 + (80*6*2)
-global keyboardHandler
-keyboardHandler:
+global oldkeyboardHandler
+oldkeyboardHandler:
 push eax
 push ebx
 push ds
@@ -82,7 +25,7 @@ xor eax, eax
 in al, 0x60
 cmp eax, 0x3A
 jg .done
-mov al, [scancodesToAscii+eax]
+mov al, [oldscancodesToAscii+eax]
 test al, al
 jz .done
 mov ebx, [cursorCurrent]
@@ -98,8 +41,7 @@ pop eax
 iret
 
 KBDWAIT: db 0
-global kbd_wait
-kbd_wait:
+oldkbd_wait:
 mov byte [KBDWAIT], 0
 .loop:
 hlt
@@ -108,13 +50,15 @@ test eax, eax
 jz .loop
 ret
 
+TIMERVAL: dd 0
 global timerHandler
 timerHandler:
 push eax
 push ds
 mov ax, 0x10
 mov ds, ax
-inc byte [(0xb8000 + (80*8*2))]
+;inc byte [(0xb8000 + (80*8*2))]
+inc dword [TIMERVAL]
 mov al, 0x20
 out 0x20, al
 pop ds
@@ -159,103 +103,3 @@ jmp $+2
 jmp $+2
 out 0xA1, al
 ret
-
-global divisionErrorHandler
-divisionErrorHandler:
-mov ax, 0x10
-mov ds, ax
-mov dword [0xb8000], 0x0f000f00 | '#' | 'D' << 16
-mov dword [0xb8004], 0x0f000f00 | 'E' | '!' << 16
-.hlt:
-hlt
-jmp .hlt
-global boundRangeHandler
-boundRangeHandler:
-mov ax, 0x10
-mov ds, ax
-mov dword [0xb8000], 0x0f000f00 | '#' | 'B' << 16
-mov dword [0xb8004], 0x0f000f00 | 'R' | '!' << 16
-.hlt:
-hlt
-jmp .hlt
-global invalidOpcodeHandler
-invalidOpcodeHandler:
-mov ax, 0x10
-mov ds, ax
-mov dword [0xb8000], 0x0f000f00 | '#' | 'U' << 16
-mov dword [0xb8004], 0x0f000f00 | 'D' | '!' << 16
-.hlt:
-hlt
-jmp .hlt
-global deviceNotAvailableHandler
-deviceNotAvailableHandler:
-mov ax, 0x10
-mov ds, ax
-mov dword [0xb8000], 0x0f000f00 | '#' | 'N' << 16
-mov dword [0xb8004], 0x0f000f00 | 'D' | '!' << 16
-.hlt:
-hlt
-jmp .hlt
-global doubleFaultHandler
-doubleFaultHandler:
-mov ax, 0x10
-mov ds, ax
-mov dword [0xb8000], 0x0f000f00 | '#' | 'D' << 16
-mov dword [0xb8004], 0x0f000f00 | 'F' | '!' << 16
-.hlt:
-hlt
-jmp .hlt
-global invalidTSSHandler
-invalidTSSHandler:
-mov ax, 0x10
-mov ds, ax
-mov dword [0xb8000], 0x0f000f00 | '#' | 'T' << 16
-mov dword [0xb8004], 0x0f000f00 | 'S' | '!' << 16
-.hlt:
-hlt
-jmp .hlt
-global segmentNotPresentHandler
-segmentNotPresentHandler:
-mov ax, 0x10
-mov ds, ax
-mov dword [0xb8000], 0x0f000f00 | '#' | 'N' << 16
-mov dword [0xb8004], 0x0f000f00 | 'P' | '!' << 16
-.hlt:
-hlt
-jmp .hlt
-global stackSegmentHandler
-stackSegmentHandler:
-mov ax, 0x10
-mov ds, ax
-mov dword [0xb8000], 0x0f000f00 | '#' | 'S' << 16
-mov dword [0xb8004], 0x0f000f00 | 'S' | '!' << 16
-.hlt:
-hlt
-jmp .hlt
-global x87FloatingHandler
-x87FloatingHandler:
-mov ax, 0x10
-mov ds, ax
-mov dword [0xb8000], 0x0f000f00 | '#' | 'M' << 16
-mov dword [0xb8004], 0x0f000f00 | 'F' | '!' << 16
-.hlt:
-hlt
-jmp .hlt
-global alignmentCheckHandler
-alignmentCheckHandler:
-mov ax, 0x10
-mov ds, ax
-mov dword [0xb8000], 0x0f000f00 | '#' | 'A' << 16
-mov dword [0xb8004], 0x0f000f00 | 'C' | '!' << 16
-.hlt:
-hlt
-jmp .hlt
-global controlProtectionHandler
-controlProtectionHandler:
-mov ax, 0x10
-mov ds, ax
-mov dword [0xb8000], 0x0f000f00 | '#' | 'C' << 16
-mov dword [0xb8004], 0x0f000f00 | 'P' | '!' << 16
-.hlt:
-hlt
-jmp .hlt

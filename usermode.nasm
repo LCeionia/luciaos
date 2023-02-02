@@ -16,5 +16,7 @@ cmp eax, 200
 jl .loop
 mov eax, 0xA0000
 int 0x30 ; Exit
+mov edx, 0x105000 ; somewhere in kernel mem
+mov edx, [edx] ; should page fault
 xor ebx, ebx
 div bl ; Unhandled DIV0 exception
