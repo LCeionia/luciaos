@@ -112,7 +112,7 @@ void error_environment() {
     for (int i = 0; i < 80*50; i++)
         vga_text[i] = error_screen[i];
     uint8_t key;
-    for (key = get_key(); key != 'e' && key != 'E'; key = get_key());
+    while (key = get_key(), key != 'e' && key != 'E');
     v86_entry = i386LinearToFp(v86TransFlag);
     enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry), &regs);
 }
@@ -311,12 +311,22 @@ void start() {
     kbd_wait();
 
     vga_text = &((uint16_t*)0xB8000)[80*16];
-    vga_text += printStr("Press ` for a flagrant system error... ", vga_text);
-    while ((key = get_key()) != '`') {
-        *vga_text = (*vga_text & 0xFF00) | key;
-        vga_text++;
-    }
-    // flagrant system error
-    *((uint8_t*)0x1000000) = 0;
+    vga_text += printStr("Press E for a flagrant system error. Press C to continue... ", vga_text);
+    for (char l = 1;l;) { switch (key = get_key()) {
+        case 'e':
+        case 'E':
+            // flagrant system error
+            *((uint8_t*)0x1000000) = 0;
+            break;
+        case 'c':
+        case 'C':
+            // continue
+            l = 0;
+            break;
+        default:
+            *vga_text = (*vga_text & 0xFF00) | key;
+            vga_text++;
+            break;
+    }}
 }
 

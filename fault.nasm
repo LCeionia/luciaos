@@ -6,8 +6,8 @@ _fault_coda:
 xchg bx,bx
 mov ax, 0x10
 mov es, ax
-; move to TOP OF kernel stack
-mov ebp, 0x400000
+; move to 'safe' location
+mov ebp, 0x318000
 mov esp, ebp
 call error_environment
 .hlt:
@@ -17,13 +17,30 @@ jmp .hlt
 extern gpf_handler_v86
 global gpfHandler
 gpfHandler:
+cli ; make sure we're in a 'friendly' env
 push eax
 push ebx
+push ecx
+; save old ds
 mov bx, ds
 mov ax, 0x10
 mov ds, ax
 mov word [_gpf_old_ds], bx
+; relocate stack so other interrupts don't fuck us over
+; not sure if this is necessary, it doesn't seem to fix our race conditions...
+mov ebx, esp
+sub esp, 0x1000
+xor ecx, ecx
+.l:
+mov eax, [ebx]
+mov [esp+ecx], eax
+add ebx, 4
+add ecx, 4
+cmp ebx, 0x320000 ; tss esp0
+jl .l
+pop ecx
 pop ebx
+sti ; we shouldn't crash now?
 mov eax, dword [esp+16] ; EFLAGS
 and eax, 1 << 17 ; VM flag
 test eax, eax

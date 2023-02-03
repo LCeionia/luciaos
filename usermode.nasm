@@ -26,6 +26,9 @@ inc al
 cmp eax, 200
 jl .loop
 mov eax, 0xA0000
+;mov ecx, 1000000000
+;.dbg:
+;loop .dbg
 int 0x30 ; Exit
 mov edx, 0x105000 ; somewhere in kernel mem
 mov edx, [edx] ; should page fault
