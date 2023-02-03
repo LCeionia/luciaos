@@ -82,6 +82,7 @@ void IRQ_clear_mask(char IRQline) {
 }
 
 char v86_if = 0;
+extern uint16_t error_screen[80*50]; // defined in kernel.c
 extern uint16_t *ivt;
 extern void real_test();
 extern void jmp_usermode_test();
@@ -99,14 +100,14 @@ void gpf_handler_v86(struct interrupt_frame *frame, unsigned long error_code) {
     stack = FP_TO_LINEAR(frame->ss, frame->esp);
     stack32 = (uint32_t*)stack;
 
-    char *vga = (char*)0xb8000 + (160 * 10);
+    char *vga = (char*)error_screen + (160 * 10);
     vga[0] = 'I'; vga[2] = 'P'; int_printWord(frame->eip, (uint16_t*)&vga[4]); vga += 14;
     vga[0] = 'C'; vga[2] = 'S'; int_printWord(frame->cs, (uint16_t*)&vga[4]); vga += 14;
     vga[0] = 'F'; vga[2] = 'L'; int_printDword(frame->eflags, (uint16_t*)&vga[4]); vga += 14;
-    vga = (char*)0xb8000 + (160 * 11);
+    vga = (char*)error_screen + (160 * 11);
     vga[0] = 'S'; vga[2] = 'P'; int_printWord(frame->esp, (uint16_t*)&vga[4]); vga += 14;
     vga[0] = 'S'; vga[2] = 'S'; int_printWord(frame->ss, (uint16_t*)&vga[4]); vga += 14;
-    vga = (char*)0xb8000 + (160 * 12);
+    vga = (char*)error_screen + (160 * 12);
     vga[0] = 'E'; vga[2] = 'S'; int_printWord(frame->es, (uint16_t*)&vga[4]); vga += 14;
     vga[0] = 'D'; vga[2] = 'S'; int_printWord(frame->ds, (uint16_t*)&vga[4]); vga += 14;
     vga[0] = 'F'; vga[2] = 'S'; int_printWord(frame->fs, (uint16_t*)&vga[4]); vga += 14;
@@ -127,7 +128,8 @@ void gpf_handler_v86(struct interrupt_frame *frame, unsigned long error_code) {
     //    printByte(ip[i], vga);
     //    vga += (sizeof(uint8_t)*2)*2;
     //}
-    vga = (char*)0xb8000 + (160*3);
+
+    vga = (char*)error_screen + (160*3);
     for(;;) {
         switch (ip[0]) {
             case 0x66: // O32
@@ -220,14 +222,14 @@ void gpf_handler_v86(struct interrupt_frame *frame, unsigned long error_code) {
         }
     }
     done:;
-    vga = (char*)0xb8000 + (160 * 13);
+    vga = (char*)error_screen + (160 * 13);
     vga[0] = 'I'; vga[2] = 'P'; int_printWord(frame->eip, (uint16_t*)&vga[4]); vga += 14;
     vga[0] = 'C'; vga[2] = 'S'; int_printWord(frame->cs, (uint16_t*)&vga[4]); vga += 14;
     vga[0] = 'F'; vga[2] = 'L'; int_printDword(frame->eflags, (uint16_t*)&vga[4]); vga += 14;
-    vga = (char*)0xb8000 + (160 * 14);
+    vga = (char*)error_screen + (160 * 14);
     vga[0] = 'S'; vga[2] = 'P'; int_printWord(frame->esp, (uint16_t*)&vga[4]); vga += 14;
     vga[0] = 'S'; vga[2] = 'S'; int_printWord(frame->ss, (uint16_t*)&vga[4]); vga += 14;
-    vga = (char*)0xb8000 + (160 * 15);
+    vga = (char*)error_screen + (160 * 15);
     vga[0] = 'E'; vga[2] = 'S'; int_printWord(frame->es, (uint16_t*)&vga[4]); vga += 14;
     vga[0] = 'D'; vga[2] = 'S'; int_printWord(frame->ds, (uint16_t*)&vga[4]); vga += 14;
     vga[0] = 'F'; vga[2] = 'S'; int_printWord(frame->fs, (uint16_t*)&vga[4]); vga += 14;
@@ -266,9 +268,16 @@ uint8_t scancodesToAsciiShift[0x3B] =
 "\0"; // 0x3A
 uint8_t _KBDWAIT;
 uint8_t _KEYCAPS = 0, _KEYSHIFT = 0;
-uint8_t _LSTKEY = 0;
+uint8_t _LSTKEY_ASCII = 0, _LSTKEY_SCAN = 0;
 __attribute__ ((interrupt))
 void keyboardHandler(struct interrupt_frame *frame) {
+    uint16_t old_ds;
+    asm volatile(
+        "mov %%ds, %%bx\n"
+        "mov $0x10, %%ax\n"
+        "mov %%ax, %%ds\n"
+        :"=b"(old_ds)::"%ax"
+    );
     uint8_t key;
     asm volatile("inb $0x60, %%al":"=a"(key));
     if (key == 0x3A) { // caps lock press
@@ -282,11 +291,19 @@ void keyboardHandler(struct interrupt_frame *frame) {
             scancodesToAsciiShift[key] :
             scancodesToAscii[key];
         if (ascii) {
-            _LSTKEY = ascii;
+            _LSTKEY_ASCII = ascii;
+            _LSTKEY_SCAN = key;
             _KBDWAIT = 1;
         }
+    } else {
+        _LSTKEY_ASCII = 0;
+        _LSTKEY_SCAN = key;
     }
     asm volatile("outb %%al, $0x20"::"a"(0x20));
+    asm volatile(
+        "mov %%ax, %%ds\n"
+        ::"a"(old_ds)
+    );
 }
 
 __attribute((__no_caller_saved_registers__))
@@ -299,11 +316,21 @@ void kbd_wait() {
 
 __attribute((__no_caller_saved_registers__))
 uint8_t get_key() {
-    while(!_LSTKEY) {
+    while(!_LSTKEY_ASCII) {
         asm volatile("hlt");
     }
-    uint8_t k = _LSTKEY;
-    _LSTKEY = 0;
+    uint8_t k = _LSTKEY_ASCII;
+    _LSTKEY_ASCII = 0;
+    return k;
+}
+__attribute((__no_caller_saved_registers__))
+uint16_t get_scancode() {
+    while(!_LSTKEY_SCAN) {
+        asm volatile("hlt");
+    }
+    uint16_t k = _LSTKEY_SCAN | (_LSTKEY_ASCII << 8);
+    _LSTKEY_SCAN = 0;
+    _LSTKEY_ASCII = 0;
     return k;
 }
 

@@ -50,6 +50,7 @@ jmp gpf_handler_32
 gpf_unhandled:
 mov dword [error_screen+0x00], 0x0f000f00 | 'G' | 'P' << 16
 mov dword [error_screen+0x04], 0x0f000f00 | 'F' | '!' << 16
+xchg bx,bx
 jmp _fault_coda
 
 _gpf_old_ds: dw 0

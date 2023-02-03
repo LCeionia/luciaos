@@ -6,6 +6,7 @@
 #include "tss.h"
 #include "paging.h"
 #include "v86defs.h"
+#include "tests.h"
 
 typedef unsigned short word;
 
@@ -53,8 +54,6 @@ uint32_t get_cr4() {
     asm volatile("mov %%cr4, %%eax":"=a"(reg));
     return reg;
 }
-
-extern char *jmp_usermode_test();
 
 extern char _edata, _v86code, _ev86code, _bstart, _bend, _loadusercode, _usercode, _eusercode;
 void setup_binary() {
@@ -142,95 +141,62 @@ Protected Only (1MB+)
 400000 - 700000 Usermode Code (3mB)
 700000 - 800000 Usermode Stack (1mB)
 */
-
-void TestV86() {
-    union V86Regs_t regs;
-    regs.d.edi = 0x11111111;
-    regs.d.esi = 0x22222222;
-    regs.d.ebx = 0x33333333;
-    regs.d.edx = 0x44444444;
-    regs.d.ecx = 0x55555555;
-    regs.d.eax = 0x66666666;
-    FARPTR v86_entry = i386LinearToFp(v86Test);
-    enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry), &regs);
-}
-void TestUser() {
-    char *vga = jmp_usermode_test();
-    for (int i = 0; i < 320; i++) {
-        vga[i] = i;
-    }
-}
-void TestDiskRead() {
-    union V86Regs_t regs;
-    word *vga_text = (word *)0xb8000 + (80*5);
-    vga_text += printStr("Setting Text Mode... ", vga_text);
-    regs.w.ax = 3; // text mode
-    FARPTR v86_entry = i386LinearToFp(v86VideoInt);
-    enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry), &regs);
-    vga_text += printStr("Done. Starting Disk Read... ", vga_text);
-    v86_entry = i386LinearToFp(v86DiskRead);
-    enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry), &regs);
-    vga_text = (word *)0xb8000;
-    char *diskReadBuf = (char *)0x23000;
-    for (int i = 0; i < (80*25)/2; i++) {
-        printByte(diskReadBuf[i], &vga_text[i*2]);
-    }
-}
-void TestFAT() {
-    word *vga_text = (word *)0xb8000;
-    uint8_t *diskReadBuf = (uint8_t *)0x22400;
+void DrawScreen() {
+    uint16_t *vga_text = (uint16_t *)0xB8000;
+    // clear screen
     for (int i = 0; i < 80*25; i++)
-        vga_text[i] = 0x0f00;
+        vga_text[i] = 0x1f00;
+    // draw border
+    for (int c = 1; c < 79; c++) {
+        vga_text[c] = 0x1fc4; // top line
+        vga_text[(2*80)+c] = 0x1fc4; // 3rd line
+        vga_text[(24*80)+c] = 0x1fc4; // bottom line
+    }
+    for (int l = 1; l < 24; l++) {
+        vga_text[80*l] = 0x1fb3;
+        vga_text[(80*l)+79] = 0x1fb3;
+    }
+    vga_text[0] = 0x1fda;
+    vga_text[79] = 0x1fbf;
+    vga_text[2*80] = 0x1fc3;
+    vga_text[2*80+79] = 0x1fb4;
+    vga_text[24*80] = 0x1fc0;
+    vga_text[24*80+79] = 0x1fd9;
+    // name
+    vga_text[80+34] = 0x1f00 | '-';
+    vga_text[80+35] = 0x1f00 | ' ';
+    vga_text[80+36] = 0x1f00 | 'L';
+    vga_text[80+37] = 0x1f00 | 'u';
+    vga_text[80+38] = 0x1f00 | 'c';
+    vga_text[80+39] = 0x1f00 | 'i';
+    vga_text[80+40] = 0x1f00 | 'a';
+    vga_text[80+41] = 0x1f00 | 'O';
+    vga_text[80+42] = 0x1f00 | 'S';
+    vga_text[80+43] = 0x1f00 | ' ';
+    vga_text[80+44] = 0x1f00 | '-';
+}
+
+int32_t fileCount;
+uint16_t *nextLine(uint16_t *p) {
+    uintptr_t v = (uintptr_t)p;
+    return (uint16_t *)(v + (160 - ((v - 0xb8000) % 160)));
+}
+void PrintFileList() {
+    uint16_t *vga_text = &((uint16_t *)0xb8000)[80*4+3];
+    uint8_t *diskReadBuf = (uint8_t *)0x20000;
     VOLINFO vi;
 
     uint8_t pactive, ptype;
     uint32_t pstart, psize;
     pstart = DFS_GetPtnStart(0, diskReadBuf, 0, &pactive, &ptype, &psize);
-    vga_text = (word *)0xb8000;
-    vga_text += printStr("PartStart: ", vga_text);
-    vga_text += printDword(pstart, vga_text);
-    vga_text += 2;
-    vga_text += printStr("PartSize: ", vga_text);
-    vga_text += printDword(psize, vga_text);
-    vga_text += 2;
-    vga_text += printStr("PartActive: ", vga_text);
-    vga_text += printByte(pactive, vga_text);
-    vga_text += 2;
-    vga_text += printStr("PartType: ", vga_text);
-    vga_text += printByte(ptype, vga_text);
-    vga_text = (word *)((((((uintptr_t)vga_text)-0xb8000) - ((((uintptr_t)vga_text)-0xb8000) % 160)) + 160)+0xb8000);
-    //asm ("xchgw %bx, %bx");
 
     DFS_GetVolInfo(0, diskReadBuf, pstart, &vi);
-    vga_text += printStr("Label: ", vga_text);
-    vga_text += printStr((char*)vi.label, vga_text);
-    vga_text += 2;
-    vga_text += printStr("Sec/Clus: ", vga_text);
-    vga_text += printByte(vi.secperclus, vga_text);
-    vga_text += 2;
-    vga_text += printStr("ResrvSec: ", vga_text);
-    vga_text += printWord(vi.reservedsecs, vga_text);
-    vga_text += 2;
-    vga_text += printStr("NumSec: ", vga_text);
-    vga_text += printDword(vi.numsecs, vga_text);
-    vga_text += 2;
-    vga_text += printStr("Sec/FAT: ", vga_text);
-    vga_text += printDword(vi.secperfat, vga_text);
-    vga_text += 2;
-    vga_text += printStr("FAT1@: ", vga_text);
-    vga_text += printDword(vi.fat1, vga_text);
-    vga_text += 2;
-    vga_text += printStr("ROOT@: ", vga_text);
-    vga_text += printDword(vi.rootdir, vga_text);
-    vga_text = (word *)((((((uintptr_t)vga_text)-0xb8000) - ((((uintptr_t)vga_text)-0xb8000) % 160)) + 160)+0xb8000);
-    //asm ("xchgw %bx, %bx");
 
-    vga_text += printStr("Files in root:", vga_text);
     DIRINFO di;
     di.scratch = diskReadBuf;
     DFS_OpenDir(&vi, (uint8_t*)"", &di);
-    vga_text = (word *)((((((uintptr_t)vga_text)-0xb8000) - ((((uintptr_t)vga_text)-0xb8000) % 160)) + 160)+0xb8000);
     DIRENT de;
+    fileCount = 0;
     while (!DFS_GetNext(&vi, &di, &de)) {
         if (de.name[0]) {
             for (int i = 0; i < 11 && de.name[i]; i++) {
@@ -241,9 +207,38 @@ void TestFAT() {
             vga_text += printStr("  ", vga_text);
             vga_text += printDec((uint32_t)de.filesize_0 + ((uint32_t)de.filesize_1 << 8) + ((uint32_t)de.filesize_2 << 16) + ((uint32_t)de.filesize_3 << 24), vga_text);
             *(uint8_t*)vga_text++ = 'B';
-            vga_text = (word *)((((((uintptr_t)vga_text)-0xb8000) - ((((uintptr_t)vga_text)-0xb8000) % 160)) + 160)+0xb8000);
+            vga_text = nextLine(vga_text) + 3;
+            fileCount++;
         }
-        //asm ("xchgw %bx, %bx");
+    }
+}
+void FileSelect() {
+    fileCount = 5;
+    uint16_t *vga_text = (uint16_t *)0xb8000;
+    int32_t fileHovered = 0, lastFileHovered = 0;
+    for (;;) {
+        PrintFileList();
+        if (lastFileHovered != fileHovered) {
+            vga_text[80*(4+lastFileHovered)+2] = 0x1f00 | ' ';
+            lastFileHovered = fileHovered;
+        }
+        vga_text[80*(4+fileHovered)+2] = 0x1f00 | '>';
+        uint16_t key = get_scancode();
+        switch (key & 0xff) { // scancode component
+            case 0x50: // down
+                fileHovered++;
+                if (fileHovered >= fileCount) fileHovered = 0;
+                break;
+            case 0x48: // up
+                fileHovered--;
+                if (fileHovered < 0) fileHovered = fileCount - 1;
+                break;
+            case 0x14: // t
+                RunTests(vga_text);
+                DrawScreen();
+            default:
+                break;
+        }
     }
 }
 
@@ -291,42 +286,14 @@ void start() {
     vga_text++;
     //print_cr3();
     //print_cr4();
-
-    vga_text += printStr("V86 Test... ", vga_text);
-    //asm ("xchgw %bx, %bx");
-    TestV86(); // has int 3 wait in v86
-    vga_text = (word *)0xb8000 + (80*3);
     backup_ivtbios();
-    vga_text += printStr("Done. Press 'N' for next test.", vga_text);
-    uint8_t key;
-    while ((key = get_key()) != 'N') {
-        *vga_text = (*vga_text & 0xFF00) | key;
-        vga_text++;
-    }
-    TestUser();
-    kbd_wait();
-    TestDiskRead();
-    kbd_wait();
-    TestFAT();
-    kbd_wait();
 
-    vga_text = &((uint16_t*)0xB8000)[80*16];
-    vga_text += printStr("Press E for a flagrant system error. Press C to continue... ", vga_text);
-    for (char l = 1;l;) { switch (key = get_key()) {
-        case 'e':
-        case 'E':
-            // flagrant system error
-            *((uint8_t*)0x1000000) = 0;
-            break;
-        case 'c':
-        case 'C':
-            // continue
-            l = 0;
-            break;
-        default:
-            *vga_text = (*vga_text & 0xFF00) | key;
-            vga_text++;
-            break;
-    }}
+    vga_text = &((word *)0xb8000)[80];
+    vga_text += printStr("Press T for tests, or any key to continue... ", vga_text);
+    uint8_t key = get_key();
+    if (key == 't' || key == 'T')
+        RunTests(vga_text);
+    DrawScreen();
+    FileSelect();
 }
 

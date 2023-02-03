@@ -1,6 +1,5 @@
 [ORG 0x7c00]
 [BITS 16]
-
 xor ax, ax
 mov ds, ax
 mov es, ax
@@ -72,5 +71,5 @@ string: db 'DISK ERROR'
 addr_packet:
 db 0x10, 0x00 ; size, reserved
 dw 0x39 ; blocks
-dd 0x8000 ; transfer buffer
-dq 1 ; start block
+addr_packet_transfer_buff: dd 0x08000000 ; transfer buffer
+addr_packet_start_block: dq 1 ; start block

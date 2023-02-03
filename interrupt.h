@@ -1,3 +1,4 @@
+#pragma once
 #include <stdint.h>
 
 struct interrupt_frame {
@@ -33,6 +34,8 @@ void kbd_wait();
 
 __attribute((__no_caller_saved_registers__))
 uint8_t get_key();
+__attribute((__no_caller_saved_registers__))
+uint16_t get_scancode();
 
 __attribute__ ((interrupt))
 void gpf_handler_v86(struct interrupt_frame *frame, unsigned long error_code);
