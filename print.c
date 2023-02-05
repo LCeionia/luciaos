@@ -26,6 +26,11 @@ uintptr_t printStr(char *v, uint16_t *buff) {
     return s - v;
 }
 
+uintptr_t printChar(char v, uint16_t *buff) {
+    *(char*)buff = v;
+    return 1;
+}
+
 uintptr_t printDec(uint32_t v, uint16_t *buff) {
     char b[12];
     char *s = &b[11];

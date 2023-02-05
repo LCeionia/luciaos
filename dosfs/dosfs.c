@@ -13,16 +13,23 @@
 #include "../interrupt.h"
 #include "../v86defs.h"
 
-// all reading at 0x23000 - be careful!
 uint32_t DFS_ReadSector(uint8_t unit, uint8_t *buffer, uint32_t sector, uint32_t count) {
+	// NOTE If the buffer provided is outside the 0x20000-0x2FE00 range,
+	// the function will use that buffer for the Virtual 8086 process
+	// and copy to the other buffer after
+	uint8_t *v86buf = buffer;
+	if ((uintptr_t)v86buf < 0x20000 || (uintptr_t)v86buf > 0x2FE00)
+		v86buf = (uint8_t *)0x20000;
 	v86disk_addr_packet.start_block = sector;
 	v86disk_addr_packet.blocks = count;
 	v86disk_addr_packet.transfer_buffer =
-		(uintptr_t)buffer & 0x000F |
-		(((uintptr_t)buffer & 0xFFFF0) << 12);
+		(uintptr_t)v86buf & 0x000F |
+		(((uintptr_t)v86buf & 0xFFFF0) << 12);
 	union V86Regs_t regs;
     FARPTR v86_entry = i386LinearToFp(v86DiskRead);
     enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry), &regs);
+	if (v86buf != buffer)
+		memcpy(buffer, v86buf, count * SECTOR_SIZE);
 	return 0;
 }
 uint32_t DFS_WriteSector(uint8_t unit, uint8_t *buffer, uint32_t sector, uint32_t count) {
@@ -1038,8 +1045,9 @@ void DFS_Seek(PFILEINFO fileinfo, uint32_t offset, uint8_t *scratch)
 
 		// seek by clusters
 		// larwe 9/30/06 bugfix changed .rem to .quot in both div calls
+		// Lucia 2/4/2023 'fileinfo->pointer + offset' into just 'offset' for bugfix
 		while (div(fileinfo->pointer, fileinfo->volinfo->secperclus * SECTOR_SIZE).quot !=
-		  div(fileinfo->pointer + offset, fileinfo->volinfo->secperclus * SECTOR_SIZE).quot) {
+		  div(offset, fileinfo->volinfo->secperclus * SECTOR_SIZE).quot) {
 
 			fileinfo->cluster = DFS_GetFAT(fileinfo->volinfo, scratch, &tempint, fileinfo->cluster);
 			// Abort if there was an error

@@ -86,8 +86,8 @@ int strcmp(const char *l, const char *r)
 
 
 /* STDLIB DIV FUNCTIONS */
-typedef struct { int quot, rem; } div_t;
-typedef struct { long quot, rem; } ldiv_t;
+typedef struct { int32_t quot, rem; } div_t;
+typedef struct { int64_t quot, rem; } ldiv_t;
 div_t div(int num, int den)
 {
 	return (div_t){ num/den, num%den };

@@ -14,6 +14,8 @@ call error_environment
 hlt
 jmp .hlt
 
+global _gpf_eax_save
+_gpf_eax_save: dd 0
 extern gpf_handler_v86
 global gpfHandler
 gpfHandler:

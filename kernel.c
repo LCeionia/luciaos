@@ -55,7 +55,16 @@ uint32_t get_cr4() {
     return reg;
 }
 
-extern char _edata, _v86code, _ev86code, _bstart, _bend, _loadusercode, _usercode, _eusercode;
+extern char _loadusercode, _usercode, _eusercode;
+void LoadUser() {
+    // Put Usermode code in proper place based on linker
+    char *s = &_loadusercode;
+    char *d = &_usercode;
+    while (d < &_eusercode)
+        *d++ = *s++;
+}
+
+extern char _edata, _v86code, _ev86code, _bstart, _bend;
 void setup_binary() {
     // Put V86 code in proper place based on linker
     char *s = &_edata;
@@ -63,11 +72,7 @@ void setup_binary() {
     while (d < &_ev86code)
         *d++ = *s++;
 
-    // Put Usermode code in proper place based on linker
-    s = &_loadusercode;
-    d = &_usercode;
-    while (d < &_eusercode)
-        *d++ = *s++;
+    LoadUser();
 
     // Clear BSS area
     for (d = &_bstart; d < &_bend; d++)
@@ -174,41 +179,140 @@ void DrawScreen() {
     vga_text[80+42] = 0x1f00 | 'S';
     vga_text[80+43] = 0x1f00 | ' ';
     vga_text[80+44] = 0x1f00 | '-';
+
+    // Info line (4)
+    vga_text = &vga_text[80*4+2];
+    printStr("T to run tests - O to view file in hex", vga_text);
 }
 
+uint32_t OpenVol(VOLINFO *vi) {
+    uint8_t *diskReadBuf = (uint8_t *)0x20000;
+    uint8_t pactive, ptype;
+    uint32_t pstart, psize;
+    pstart = DFS_GetPtnStart(0, diskReadBuf, 0, &pactive, &ptype, &psize);
+    return DFS_GetVolInfo(0, diskReadBuf, pstart, vi);
+}
+uint32_t OpenDir(uint8_t *path, VOLINFO *vi, DIRINFO *di) {
+    uint8_t *diskReadBuf = (uint8_t *)0x20000;
+    di->scratch = diskReadBuf;
+    return DFS_OpenDir(vi, path, di);
+}
 int32_t fileCount;
+DIRENT *entries = (DIRENT*)0x400000;
+void GetFileList(VOLINFO *vi, DIRINFO *di) {
+    uint8_t *diskReadBuf = (uint8_t *)0x20000;
+    DIRENT de;
+    fileCount = 0;
+    while (!DFS_GetNext(vi, di, &de)) {
+        if (de.name[0]) {
+            uint8_t *d = (uint8_t*)&entries[fileCount];
+            uint8_t *s = (uint8_t*)&de;
+            for (int i = 0; i < sizeof(DIRENT); i++)
+                d[i] = s[i];
+            fileCount++;
+        }
+    }
+}
 uint16_t *nextLine(uint16_t *p) {
     uintptr_t v = (uintptr_t)p;
     return (uint16_t *)(v + (160 - ((v - 0xb8000) % 160)));
 }
 void PrintFileList() {
-    uint16_t *vga_text = &((uint16_t *)0xb8000)[80*4+3];
-    uint8_t *diskReadBuf = (uint8_t *)0x20000;
-    VOLINFO vi;
-
-    uint8_t pactive, ptype;
-    uint32_t pstart, psize;
-    pstart = DFS_GetPtnStart(0, diskReadBuf, 0, &pactive, &ptype, &psize);
-
-    DFS_GetVolInfo(0, diskReadBuf, pstart, &vi);
-
-    DIRINFO di;
-    di.scratch = diskReadBuf;
-    DFS_OpenDir(&vi, (uint8_t*)"", &di);
-    DIRENT de;
-    fileCount = 0;
-    while (!DFS_GetNext(&vi, &di, &de)) {
-        if (de.name[0]) {
-            for (int i = 0; i < 11 && de.name[i]; i++) {
-                if (i == 8) { *(uint8_t*)vga_text = ' '; vga_text++; } // space for 8.3
-                *(uint8_t *)vga_text = de.name[i];
-                vga_text++;
+    uint16_t *vga_text = &((uint16_t *)0xb8000)[80*6+3];
+    for (int i = 0; i < fileCount; i++) {
+        DIRENT *de = &entries[i];
+        for (int i = 0; i < 11 && de->name[i]; i++) {
+            if (i == 8) { *(uint8_t*)vga_text = ' '; vga_text++; } // space for 8.3
+            *(uint8_t *)vga_text = de->name[i];
+            vga_text++;
+        }
+        vga_text += printStr("  ", vga_text);
+        vga_text += printDec((uint32_t)de->filesize_0 +
+                ((uint32_t)de->filesize_1 << 8) +
+                ((uint32_t)de->filesize_2 << 16) +
+                ((uint32_t)de->filesize_3 << 24), vga_text);
+        *(uint8_t*)vga_text++ = 'B';
+        vga_text = nextLine(vga_text) + 3;
+    }
+}
+const uint32_t byteCount = 16*24;
+uint8_t diskReadBuf[16*24];
+void FileReadTest(uint8_t *path, VOLINFO *vi) {
+    uint32_t err;
+    uint16_t *vga_text = (uint16_t *)0xb8000;
+    uint8_t *scratch = (uint8_t *)0x20000;
+    FILEINFO fi;
+    err = DFS_OpenFile(vi, path, DFS_READ, scratch, &fi);
+    if (err) {
+        vga_text += printStr("Open Error: ", vga_text);
+        printDword(err, vga_text);
+        return;
+    }
+    uint32_t successcount;
+    uint32_t readOffset = 0, lastReadOffset = -1;
+    char cont = 1;
+    for (;cont;) {
+        if (readOffset != lastReadOffset) {
+            vga_text = (uint16_t *)0xb8000;
+            for (int i = 0; i < 80*25; i++)
+                vga_text[i] = 0x0f00;
+            vga_text += printStr((char*)path, vga_text);
+            vga_text += printStr("    Up/Down to navigate - E to exit", vga_text);
+            vga_text = &((uint16_t*)0xb8000)[80];
+            DFS_Seek(&fi, readOffset, scratch);
+            if (fi.pointer != readOffset) {
+                vga_text += printStr("Seek Error", vga_text);
+                return;
             }
-            vga_text += printStr("  ", vga_text);
-            vga_text += printDec((uint32_t)de.filesize_0 + ((uint32_t)de.filesize_1 << 8) + ((uint32_t)de.filesize_2 << 16) + ((uint32_t)de.filesize_3 << 24), vga_text);
-            *(uint8_t*)vga_text++ = 'B';
-            vga_text = nextLine(vga_text) + 3;
-            fileCount++;
+            err = DFS_ReadFile(&fi, scratch, diskReadBuf, &successcount, byteCount);
+            if (err && err != DFS_EOF) {
+                vga_text += printStr("Read Error: ", vga_text);
+                printDword(err, vga_text);
+                return;
+            }
+            for (uint32_t i = 0; i < successcount && i < byteCount; i += 16) {
+                vga_text += printDword(i + readOffset, vga_text);
+                vga_text += printChar(' ', vga_text);
+                vga_text += printChar(' ', vga_text);
+                for (uint32_t j = 0; j < 16; j++) {
+                    if (i + j < successcount)
+                        vga_text += printByte(diskReadBuf[i + j], vga_text);
+                    else {
+                        vga_text += printChar(' ', vga_text);
+                        vga_text += printChar(' ', vga_text);
+                    }
+                    vga_text += printChar(' ', vga_text);
+                    if (j == 8)
+                        vga_text += printChar(' ', vga_text);
+                }
+                vga_text += printChar(' ', vga_text);
+                vga_text += printChar('|', vga_text);
+                for (uint32_t j = 0; j < 16; j++) {
+                    if (i + j < successcount)
+                        vga_text += printChar(diskReadBuf[i + j], vga_text);
+                    else vga_text += printChar(' ', vga_text);
+                }
+                vga_text += printChar('|', vga_text);
+                vga_text = nextLine(vga_text);
+            }
+            lastReadOffset = readOffset;
+        }
+        uint16_t key = get_scancode();
+        switch (key & 0xff) {
+            case 0x50: // down
+                if ((readOffset + byteCount) < fi.filelen)
+                    readOffset += byteCount;
+                break;
+            case 0x48: // up
+                //asm volatile ("xchg %bx,%bx");
+                if ((readOffset - byteCount) < fi.filelen)
+                    readOffset -= byteCount;
+                break;
+            case 0x12: // e
+                cont = 0;
+                break;
+            default:
+                break;
         }
     }
 }
@@ -216,14 +320,22 @@ void FileSelect() {
     fileCount = 5;
     uint16_t *vga_text = (uint16_t *)0xb8000;
     int32_t fileHovered = 0, lastFileHovered = 0;
-    for (;;) {
+    for (char reload = 1;;) {
+        VOLINFO vi; DIRINFO di;
+        if (reload) {
+            OpenVol(&vi);
+            OpenDir((uint8_t*)"", &vi, &di);
+            GetFileList(&vi, &di);
+            reload = 0;
+        }
         PrintFileList();
         if (lastFileHovered != fileHovered) {
-            vga_text[80*(4+lastFileHovered)+2] = 0x1f00 | ' ';
+            *(uint8_t*)&vga_text[80*(6+lastFileHovered)+2] = ' ';
             lastFileHovered = fileHovered;
         }
-        vga_text[80*(4+fileHovered)+2] = 0x1f00 | '>';
+        *(uint8_t*)&vga_text[80*(6+fileHovered)+2] = '>';
         uint16_t key = get_scancode();
+        uint8_t path[13], tmp, trailingSpace;
         switch (key & 0xff) { // scancode component
             case 0x50: // down
                 fileHovered++;
@@ -236,6 +348,23 @@ void FileSelect() {
             case 0x14: // t
                 RunTests(vga_text);
                 DrawScreen();
+                reload = 1;
+                break;
+            case 0x18: // o
+                for (trailingSpace=0, tmp = 0; tmp < 8 && entries[fileHovered].name[tmp]; tmp++) {
+                    path[tmp] = entries[fileHovered].name[tmp];
+                    if (entries[fileHovered].name[tmp] == ' ') trailingSpace++;
+                    else trailingSpace = 0;
+                }
+                tmp -= trailingSpace;
+                path[tmp++] = '.';
+                for (int i = 8; i < 11 && entries[fileHovered].name[i]; i++, tmp++) {
+                    path[tmp] = entries[fileHovered].name[i];
+                }
+                path[tmp] = 0;
+                FileReadTest(path, &vi);
+                DrawScreen();
+                break;
             default:
                 break;
         }

@@ -14,7 +14,16 @@ void TestV86() {
     FARPTR v86_entry = i386LinearToFp(v86Test);
     enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry), &regs);
 }
+extern char _loadusercode, _usercode, _eusercode;
+void ReloadUser() {
+    // Put Usermode code in proper place based on linker
+    char *s = &_loadusercode;
+    char *d = &_usercode;
+    while (d < &_eusercode)
+        *d++ = *s++;
+}
 void TestUser() {
+    ReloadUser();
     char *vga = jmp_usermode_test();
     for (int i = 0; i < 320; i++) {
         vga[i] = i;
@@ -126,9 +135,6 @@ void RunTests(uint16_t *vga_text) {
     TestDiskRead();
     kbd_wait();
     TestFAT();
-    kbd_wait();
-    TestFAT();
-    kbd_wait();
 
     vga_text = &((uint16_t*)0xB8000)[80*16];
     vga_text += printStr("Press E for a flagrant system error. Press C to continue... ", vga_text);
