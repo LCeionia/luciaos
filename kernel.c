@@ -282,7 +282,7 @@ void FileReadTest(uint8_t *path, VOLINFO *vi) {
                         vga_text += printChar(' ', vga_text);
                     }
                     vga_text += printChar(' ', vga_text);
-                    if (j == 8)
+                    if (j == 7)
                         vga_text += printChar(' ', vga_text);
                 }
                 vga_text += printChar(' ', vga_text);
