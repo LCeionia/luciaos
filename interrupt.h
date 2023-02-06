@@ -29,14 +29,6 @@ typedef uint32_t FARPTR;
 
 FARPTR i386LinearToFp(void *ptr);
 
-__attribute((__no_caller_saved_registers__))
-void kbd_wait();
-
-__attribute((__no_caller_saved_registers__))
-uint8_t get_key();
-__attribute((__no_caller_saved_registers__))
-uint16_t get_scancode();
-
 __attribute__ ((interrupt))
 void gpf_handler_v86(struct interrupt_frame *frame, unsigned long error_code);
 

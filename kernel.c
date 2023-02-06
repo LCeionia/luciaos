@@ -3,6 +3,7 @@
 #include "dosfs/dosfs.h"
 #include "print.h"
 #include "interrupt.h"
+#include "kbd.h"
 #include "tss.h"
 #include "paging.h"
 #include "v86defs.h"
@@ -115,8 +116,7 @@ void error_environment() {
     uint16_t *vga_text = ((uint16_t*)0xB8000);
     for (int i = 0; i < 80*50; i++)
         vga_text[i] = error_screen[i];
-    uint8_t key;
-    while (key = get_key(), key != 'e' && key != 'E');
+    while ((get_scancode() & 0xff) != KEY_E);
     v86_entry = i386LinearToFp(v86TransFlag);
     enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry), &regs);
 }
@@ -146,6 +146,29 @@ Protected Only (1MB+)
 400000 - 700000 Usermode Code (3mB)
 700000 - 800000 Usermode Stack (1mB)
 */
+
+void SetVideo25Lines() {
+    union V86Regs_t regs;
+    regs.w.ax = 0x1114; // 80x25 mode
+    regs.w.bx = 0x0000;
+    FARPTR v86_entry = i386LinearToFp(v86VideoInt);
+    enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry), &regs);
+}
+void SetVideo50Lines() {
+    union V86Regs_t regs;
+    regs.w.ax = 0x1112; // 80x50 mode
+    regs.w.bx = 0x0000;
+    FARPTR v86_entry = i386LinearToFp(v86VideoInt);
+    enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry), &regs);
+}
+void SetCursorDisabled() {
+    union V86Regs_t regs;
+    regs.w.ax = 0x0100; // set cursor
+    regs.w.cx = 0x3F00; // disabled
+    FARPTR v86_entry = i386LinearToFp(v86VideoInt);
+    enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry), &regs);
+}
+
 void DrawScreen() {
     uint16_t *vga_text = (uint16_t *)0xB8000;
     // clear screen
@@ -235,8 +258,6 @@ void PrintFileList() {
         vga_text = nextLine(vga_text) + 3;
     }
 }
-const uint32_t byteCount = 16*24;
-uint8_t diskReadBuf[16*24];
 void FileReadTest(uint8_t *path, VOLINFO *vi) {
     uint32_t err;
     uint16_t *vga_text = (uint16_t *)0xb8000;
@@ -251,13 +272,29 @@ void FileReadTest(uint8_t *path, VOLINFO *vi) {
     uint32_t successcount;
     uint32_t readOffset = 0, lastReadOffset = -1;
     char cont = 1;
+    uint32_t byteCount = 16*24, lastByteCount;
+    uint32_t screenSize = 80*25;
+    char reread;
     for (;cont;) {
+        uint8_t diskReadBuf[byteCount];
         if (readOffset != lastReadOffset) {
+            lastReadOffset = readOffset;
+            reread = 1;
+        }
+        if (byteCount != lastByteCount) {
+            lastByteCount = byteCount;
+            reread = 1;
+        }
+        if (reread) {
             vga_text = (uint16_t *)0xb8000;
-            for (int i = 0; i < 80*25; i++)
+            for (int i = 0; i < screenSize; i++)
                 vga_text[i] = 0x0f00;
             vga_text += printStr((char*)path, vga_text);
-            vga_text += printStr("    Up/Down to navigate - E to exit", vga_text);
+            {
+                const char prnt[] = "Scroll: Up/Down PgUp/PgDown Home/End             Exit: E ";
+                vga_text = &((uint16_t*)0xb8000)[80-sizeof(prnt)];
+                vga_text += printStr((char*)prnt, vga_text);
+            }
             vga_text = &((uint16_t*)0xb8000)[80];
             DFS_Seek(&fi, readOffset, scratch);
             if (fi.pointer != readOffset) {
@@ -295,21 +332,57 @@ void FileReadTest(uint8_t *path, VOLINFO *vi) {
                 vga_text += printChar('|', vga_text);
                 vga_text = nextLine(vga_text);
             }
-            lastReadOffset = readOffset;
+            reread = 0;
         }
         uint16_t key = get_scancode();
+        union V86Regs_t regs;
+        FARPTR v86_entry;
         switch (key & 0xff) {
-            case 0x50: // down
+            case KEY_DOWN: // down
                 if ((readOffset + byteCount) < fi.filelen)
                     readOffset += byteCount;
+                else goto end;
                 break;
-            case 0x48: // up
-                //asm volatile ("xchg %bx,%bx");
+            case KEY_UP: // up
                 if ((readOffset - byteCount) < fi.filelen)
                     readOffset -= byteCount;
+                else goto home;
                 break;
-            case 0x12: // e
+            case KEY_PGDOWN:
+                if ((readOffset + (byteCount*4)) < fi.filelen)
+                    readOffset += (byteCount*4);
+                else goto end;
+                break;
+            case KEY_PGUP:
+                if ((readOffset - (byteCount*4)) < fi.filelen)
+                    readOffset -= (byteCount*4);
+                else goto home;
+                break;
+            case KEY_HOME: home:
+                readOffset = 0;
+                break;
+            case KEY_END: end:
+                if ((fi.filelen / byteCount) * byteCount > readOffset)
+                    readOffset = (fi.filelen / byteCount) * byteCount;
+                break;
+            case KEY_E: // e
                 cont = 0;
+                break;
+            case KEY_F2:
+                if (byteCount != 16*24) {
+                    SetVideo25Lines();
+                    SetCursorDisabled();
+                    screenSize = 80*25;
+                    byteCount = 16*24;
+                }
+                break;
+            case KEY_F5:
+                if (byteCount != 16*49) {
+                    SetVideo50Lines();
+                    SetCursorDisabled();
+                    screenSize = 80*50;
+                    byteCount = 16*49;
+                }
                 break;
             default:
                 break;
@@ -363,6 +436,8 @@ void FileSelect() {
                 }
                 path[tmp] = 0;
                 FileReadTest(path, &vi);
+                SetVideo25Lines();
+                SetCursorDisabled();
                 DrawScreen();
                 break;
             default:
@@ -423,6 +498,8 @@ void start() {
     if (key == 't' || key == 'T')
         RunTests(vga_text);
     DrawScreen();
+    SetVideo25Lines();
+    SetCursorDisabled();
     FileSelect();
 }
 
