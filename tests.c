@@ -117,7 +117,8 @@ void TestFAT() {
     }
 }
 
-void RunTests(uint16_t *vga_text) {
+void RunTests() {
+    uint16_t *vga_text = (uint16_t*)0xb8000;
     uint8_t key;
     vga_text += printStr("V86 Test... ", vga_text);
     //asm ("xchgw %bx, %bx");

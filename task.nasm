@@ -7,6 +7,20 @@ ret
 global task_ptr
 task_ptr: equ (0x310000-4)
 
+
+; extern void create_child(uint32_t esp, uint32_t eip);
+global create_child
+create_child:
+mov eax, [esp] ; return address
+lea ecx, [esp+4] ; return stack, minus address
+call save_current_task
+xchg bx,bx
+mov eax, [esp+8] ; new eip
+mov esp, [esp+4] ; new esp
+push return_prev_task ; if child returns, return to prev task
+push eax
+ret
+
 ; return address in EAX
 ; return stack in ECX
 ; we can modify EAX, ECX, EDX
@@ -34,6 +48,7 @@ mov esp, edx
 pop edx
 ret
 
+; FIXME System will crash if last task is invalid
 global return_prev_task
 return_prev_task:
 mov ecx, eax ; save return value for later

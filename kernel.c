@@ -109,16 +109,25 @@ void ensure_v86env() {
             error_screen[i] = 0x0f00 | (error_screen[i] & 0x00FF);
 }
 
+__attribute((__no_caller_saved_registers__))
+extern void return_prev_task();
 void error_environment() {
     ensure_v86env();
     union V86Regs_t regs;
     FARPTR v86_entry = i386LinearToFp(v86TextMode);
     enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry), &regs);
-    printStr("Oh noes!!! System error! ;c    Press E for a fun recovery :3", &error_screen[80]);
+    char str0[] = "Oh noes!!! System error! ;c    ";
+    printStr(str0, &error_screen[80]);
+    printStr("Press E for a fun recovery :3", &error_screen[80+sizeof(str0)]);
+    printStr("Press R to return to previous task", &error_screen[160+sizeof(str0)]);
     uint16_t *vga_text = ((uint16_t*)0xB8000);
     for (int i = 0; i < 80*50; i++)
         vga_text[i] = error_screen[i];
-    while ((get_scancode() & 0xff) != KEY_E);
+    for(;;) {
+        uint8_t key = get_scancode() & 0xff;
+        if (key == KEY_E) break;
+        if (key == KEY_R) return_prev_task();
+    }
     v86_entry = i386LinearToFp(v86TransFlag);
     enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry), &regs);
 }
@@ -203,6 +212,7 @@ void PrintFileList() {
         vga_text = nextLine(vga_text) + 3;
     }
 }
+extern void create_child(uint32_t esp, uint32_t eip);
 void FileSelect() {
     fileCount = 5;
     uint16_t *vga_text = (uint16_t *)0xb8000;
@@ -235,7 +245,7 @@ void FileSelect() {
                 if (fileHovered < 0) fileHovered = fileCount - 1;
                 break;
             case 0x14: // t
-                RunTests(vga_text);
+                create_child(0x3C0000, (uintptr_t)RunTests);
                 SetCursorDisabled();
                 DrawScreen();
                 reload = 1;

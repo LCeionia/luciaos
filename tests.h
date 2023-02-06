@@ -5,4 +5,4 @@
 #include "v86defs.h"
 #include "kbd.h"
 
-void RunTests(uint16_t *vga_text);
+void RunTests();
