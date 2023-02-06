@@ -7,16 +7,25 @@ ret
 global task_ptr
 task_ptr: equ (0x310000-4)
 
-
-; extern void create_child(uint32_t esp, uint32_t eip);
+; TODO Is varargs too compiler dependent?
+; extern void create_child(uint32_t esp, uint32_t eip, uint32_t argc, ...);
 global create_child
 create_child:
+xchg bx,bx
 mov eax, [esp] ; return address
 lea ecx, [esp+4] ; return stack, minus address
 call save_current_task
-xchg bx,bx
 mov eax, [esp+8] ; new eip
+mov ecx, [esp+12] ; argc
+mov esi, esp ; old esp
 mov esp, [esp+4] ; new esp
+lea esi, [esi+16] ; args
+mov edx, ecx
+neg edx
+lea esp, [esp+edx*4] ; adjust for args
+mov edi, esp
+; copy varargs to new stack
+rep movsd
 push return_prev_task ; if child returns, return to prev task
 push eax
 ret

@@ -212,7 +212,7 @@ void PrintFileList() {
         vga_text = nextLine(vga_text) + 3;
     }
 }
-extern void create_child(uint32_t esp, uint32_t eip);
+extern void create_child(uint32_t esp, uint32_t eip, uint32_t argc, ...);
 void FileSelect() {
     fileCount = 5;
     uint16_t *vga_text = (uint16_t *)0xb8000;
@@ -245,21 +245,23 @@ void FileSelect() {
                 if (fileHovered < 0) fileHovered = fileCount - 1;
                 break;
             case 0x14: // t
-                create_child(0x3C0000, (uintptr_t)RunTests);
+                create_child(0x380000, (uintptr_t)RunTests, 0);
                 SetCursorDisabled();
                 DrawScreen();
                 reload = 1;
                 break;
             case KEY_X:
                 File83ToPath((char*)entries[fileHovered].name, (char*)path);
-                HexViewTest(path, &vi);
+                //HexViewTest(path, &vi);
+                create_child(0x380000, (uintptr_t)HexViewTest, 2, path, &vi);
                 SetVideo25Lines();
                 SetCursorDisabled();
                 DrawScreen();
                 break;
             case KEY_V:
                 File83ToPath((char*)entries[fileHovered].name, (char*)path);
-                TextViewTest(path, &vi);
+                //TextViewTest(path, &vi);
+                create_child(0x380000, (uintptr_t)TextViewTest, 2, path, &vi);
                 SetVideo25Lines();
                 SetCursorDisabled();
                 DrawScreen();
@@ -321,10 +323,10 @@ void start() {
     vga_text += printStr("Press T for tests, or any key to continue... ", vga_text);
     uint8_t key = get_key();
     if (key == 't' || key == 'T')
-        RunTests(vga_text);
-    DrawScreen();
+        create_child(0x380000, (uintptr_t)RunTests, 0);
     SetVideo25Lines();
     SetCursorDisabled();
+    DrawScreen();
     FileSelect();
 }
 
