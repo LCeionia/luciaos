@@ -1,5 +1,12 @@
 [BITS 16]
 [SECTION .v86]
+
+global v86Interrupt
+v86Interrupt:
+int 0x00
+int 0x30
+jmp $
+
 real_hexprint:
 xor cx, cx
 mov bl, al
@@ -69,13 +76,6 @@ jl .loop
 int 0x30
 jmp $
 .c: db `\0263>=*.\?\?\?=*.\0263>`
-
-global v86GfxMode
-v86GfxMode:
-mov ax, 0x13
-int 0x10
-int 0x30
-jmp $
 
 global v86TextMode
 v86TextMode:

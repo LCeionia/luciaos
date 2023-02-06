@@ -1,4 +1,4 @@
-objects = entry.o kernel.o task.o handler.o interrupt.o v86.o print.o tss.o dosfs/dosfs.o gdt.o usermode.o paging.o fault.o tests.o kbd.o
+objects = entry.o kernel.o task.o handler.o interrupt.o v86.o print.o tss.o dosfs/dosfs.o gdt.o usermode.o paging.o fault.o tests.o kbd.o helper.o progs.o
 CFLAGS = -target "i686-elf" -m32 -mgeneral-regs-only -ffreestanding -march=pentium-m -fno-stack-protector -Wno-int-conversion -nostdlib -c
 
 %.o: %.nasm

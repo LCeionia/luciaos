@@ -10,7 +10,6 @@
 
 #include "dosfs.h"
 #include "tmpstring.c"
-#include "../interrupt.h"
 #include "../v86defs.h"
 
 uint32_t DFS_ReadSector(uint8_t unit, uint8_t *buffer, uint32_t sector, uint32_t count) {

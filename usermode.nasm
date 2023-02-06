@@ -6,7 +6,7 @@ mov dword [0xb8004], 0x0f000f00 | 'e' | 'r' << 16
 mov dword [0xb8008], 0x0f000f00 | 'm' | 'o' << 16
 mov dword [0xb800C], 0x0f000f00 | 'd' | 'e' << 16
 mov word [0xb8010], 0x0f00 | '!'
-mov eax, 0 ; command = 00, get key
+mov eax, 0 ; command = 00h, get key
 int 0x21 ; OS call
 push 0x00000013 ; eax  AH=0,AL=3 set video mode 3
 push 0x00000000 ; ecx
@@ -15,7 +15,8 @@ push 0x00000000 ; ebx
 push 0x00000000 ; esi
 push 0x00000000 ; edi
 push esp ; regs
-mov eax, 0x10 ; command = 10
+push 0x10 ; interrupt
+mov eax, 0x86 ; command = 86h, virtual 8086 call
 int 0x21 ; OS call
 mov edi, 0xA0000
 xor eax, eax

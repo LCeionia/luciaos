@@ -1,5 +1,4 @@
 #include "tests.h"
-#include "v86defs.h"
 
 extern char *jmp_usermode_test();
 
@@ -34,14 +33,13 @@ void TestDiskRead() {
     uint16_t *vga_text = (uint16_t *)0xb8000 + (80*5);
     vga_text += printStr("Setting Text Mode... ", vga_text);
     regs.w.ax = 3; // text mode
-    FARPTR v86_entry = i386LinearToFp(v86VideoInt);
-    enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry), &regs);
+    V8086Int(0x10, &regs); 
     vga_text += printStr("Done. Starting Disk Read... ", vga_text);
     char *diskReadBuf = (char *)0x23000;
 	v86disk_addr_packet.transfer_buffer =
 		(uintptr_t)diskReadBuf & 0x000F |
 		(((uintptr_t)diskReadBuf & 0xFFFF0) << 12);
-    v86_entry = i386LinearToFp(v86DiskRead);
+    FARPTR v86_entry = i386LinearToFp(v86DiskRead);
     enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry), &regs);
     vga_text = (uint16_t *)0xb8000;
     for (int i = 0; i < (80*25)/2; i++) {

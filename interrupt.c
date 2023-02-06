@@ -3,6 +3,7 @@
 
 #include "interrupt.h"
 #include "kbd.h"
+#include "v86defs.h"
 
 char int_nibbleToHex(uint8_t n) {
     return n > 9 ? (n - 10) + 'A' : n + '0';

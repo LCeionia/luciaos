@@ -60,7 +60,7 @@ extern get_key
 extern task_ptr
 extern _enter_v86_internal_no_task
 extern return_prev_task
-extern v86VideoInt
+extern v86Interrupt
 gpf_handler_32:
 push eax
 mov eax, dword [esp+8] ; EIP
@@ -76,21 +76,27 @@ cmp al, 0x00 ; get key
 jne .s1
 call get_key
 jmp .return_to_offender
-.s1: cmp al, 0x10 ; video interrupt
+.s1: cmp al, 0x86 ; v86 interrupt call
 jne .return_to_offender
 add esp, 4
 add dword [esp+0], 2
 ; add a new task
 call _gpf_create_return_task
 ; now enter v86 mode
-; get regs from return stack
+; get int & regs from return stack
 mov eax, [esp+12] ; return esp
-mov eax, [eax] ; regs
+mov eax, [eax] ; interrupt
+and eax, 0xff ; ensure 1 byte
+shl eax, 8
+or eax, 0x30CD00CD ; command
+mov dword [v86Interrupt], eax
+mov eax, [esp+12] ; return esp
+mov eax, [eax+4] ; regs
 push eax ; regs
-mov eax, v86VideoInt
+mov eax, v86Interrupt
 and eax, 0xffff
 push eax ; ip
-mov eax, v86VideoInt
+mov eax, v86Interrupt
 shr eax, 4
 and eax, 0xf000
 push eax ; cs
