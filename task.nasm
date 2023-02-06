@@ -11,7 +11,6 @@ task_ptr: equ (0x310000-4)
 ; extern void create_child(uint32_t esp, uint32_t eip, uint32_t argc, ...);
 global create_child
 create_child:
-xchg bx,bx
 mov eax, [esp] ; return address
 lea ecx, [esp+4] ; return stack, minus address
 call save_current_task
@@ -29,6 +28,37 @@ rep movsd
 push return_prev_task ; if child returns, return to prev task
 push eax
 ret
+
+; extern void create_user_child(uint32_t esp, uint32_t eip, uint32_t argc, ...);
+global create_user_child
+create_user_child:
+mov eax, [esp] ; return address
+lea ecx, [esp+4] ; return stack, minus address
+call save_current_task
+mov eax, [esp+8] ; new eip
+mov ecx, [esp+12] ; argc
+mov esi, esp ; old esp
+mov esp, [esp+4] ; new esp
+lea esi, [esi+16] ; args
+mov edx, ecx
+neg edx
+lea esp, [esp+edx*4] ; adjust for args
+mov edi, esp
+; copy varargs to new stack
+rep movsd
+push 0x00000000 ; if child returns, return to null, crashing
+mov ecx, 0x20 | 3
+mov ds, cx
+mov es, cx
+mov fs, cx
+mov gs, cx
+mov ecx, esp
+push 0x20 | 3
+push ecx
+pushfd
+push 0x18 | 3
+push eax
+iret
 
 ; return address in EAX
 ; return stack in ECX
@@ -145,22 +175,22 @@ iret
 ; return address in eax, return stack in ebp
 ;extern save_current_task
 
-extern user_test
-global jmp_usermode_test
-jmp_usermode_test:
-pop eax ; return address
-mov ecx, esp ; return stack
-call save_current_task
-mov esp, 0x800000 ; usermode stack
-mov eax, 0x20 | 3
-mov ds, ax
-mov es, ax
-mov fs, ax
-mov gs, ax
-mov eax, esp
-push 0x20 | 3
-push eax
-pushfd
-push 0x18 | 3
-push user_test
-iret
+;extern user_test
+;global jmp_usermode_test
+;jmp_usermode_test:
+;pop eax ; return address
+;mov ecx, esp ; return stack
+;call save_current_task
+;mov esp, 0x800000 ; usermode stack
+;mov eax, 0x20 | 3
+;mov ds, ax
+;mov es, ax
+;mov fs, ax
+;mov gs, ax
+;mov eax, esp
+;push 0x20 | 3
+;push eax
+;pushfd
+;push 0x18 | 3
+;push user_test
+;iret

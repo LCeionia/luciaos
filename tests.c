@@ -1,6 +1,7 @@
 #include "tests.h"
 
-extern char *jmp_usermode_test();
+extern char *user_test();
+extern uint32_t create_user_child(uint32_t esp, uint32_t eip, uint32_t argc, ...);
 
 void TestV86() {
     union V86Regs_t regs;
@@ -21,12 +22,16 @@ void ReloadUser() {
     while (d < &_eusercode)
         *d++ = *s++;
 }
-void TestUser() {
+char TestUser() {
     ReloadUser();
-    char *vga = jmp_usermode_test();
+    char *vga = (char *)(uintptr_t)create_user_child(0x800000, (uintptr_t)user_test, 0);
+    if ((uintptr_t)vga != 0xA0000) {
+        return 1;
+    }
     for (int i = 0; i < 320; i++) {
         vga[i] = i;
     }
+    return 0;
 }
 void TestDiskRead() {
     union V86Regs_t regs;
@@ -119,17 +124,25 @@ void TestFAT() {
 
 void RunTests() {
     uint16_t *vga_text = (uint16_t*)0xb8000;
+    for (int i = 0; i < 80*25; i++)
+        vga_text[i] = 0x1f00;
     uint8_t key;
     vga_text += printStr("V86 Test... ", vga_text);
     //asm ("xchgw %bx, %bx");
     TestV86(); // has int 3 wait in v86
     vga_text = (uint16_t *)0xb8000 + (80*3);
     vga_text += printStr("Done. Press 'N' for next test.", vga_text);
-    while ((key = get_key()) != 'N') {
+    for(;;) {
+        key = get_key();
+        if (key == 'N' || key == 'n') break;
         *vga_text = (*vga_text & 0xFF00) | key;
         vga_text++;
     }
-    TestUser();
+    if (TestUser()) {
+        // Usermode returned wrong value
+        vga_text = nextLine(vga_text);
+        vga_text += printStr("Usermode test failed! Press any key to continue.", vga_text);
+    }
     kbd_wait();
     TestDiskRead();
     kbd_wait();

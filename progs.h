@@ -9,3 +9,4 @@
 
 void HexViewTest(uint8_t *path, VOLINFO *vi);
 void TextViewTest(uint8_t *path, VOLINFO *vi);
+void ProgramLoadTest(uint8_t *path, VOLINFO *vi);

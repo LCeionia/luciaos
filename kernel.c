@@ -219,7 +219,7 @@ void FileSelect() {
     int32_t fileHovered = 0, lastFileHovered = 0;
     for (char reload = 1;;) {
         // Info line (4)
-        printStr("T to run tests - X to view in hex - V to view as text", &vga_text[80*4+2]);
+        printStr("T to run tests - X to view in hex - V to view as text - P to load as program", &vga_text[80*4+2]);
         VOLINFO vi; DIRINFO di;
         if (reload) {
             OpenVol(&vi);
@@ -246,6 +246,14 @@ void FileSelect() {
                 break;
             case 0x14: // t
                 create_child(0x380000, (uintptr_t)RunTests, 0);
+                SetCursorDisabled();
+                DrawScreen();
+                reload = 1;
+                break;
+            case KEY_P:
+                File83ToPath((char*)entries[fileHovered].name, (char*)path);
+                create_child(0x380000, (uintptr_t)ProgramLoadTest, 2, path, &vi);
+                SetVideo25Lines();
                 SetCursorDisabled();
                 DrawScreen();
                 reload = 1;

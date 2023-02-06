@@ -57,6 +57,7 @@ jmp _fault_coda
 
 _gpf_old_ds: dw 0
 extern get_key
+extern get_scancode
 extern task_ptr
 extern _enter_v86_internal_no_task
 extern return_prev_task
@@ -76,7 +77,11 @@ cmp al, 0x00 ; get key
 jne .s1
 call get_key
 jmp .return_to_offender
-.s1: cmp al, 0x86 ; v86 interrupt call
+.s1: cmp al, 0x01 ; get scancode
+jne .s86
+call get_scancode
+jmp .return_to_offender
+.s86: cmp al, 0x86 ; v86 interrupt call
 jne .return_to_offender
 add esp, 4
 add dword [esp+0], 2
