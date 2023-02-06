@@ -1,12 +1,33 @@
+secreadcnt equ 0x38
+kernelreads equ 0x10000/(512*secreadcnt) ; 64K / Sector Size FIXME This underestimates when kernel size is not divisible by bytes per read
 [ORG 0x7c00]
 [BITS 16]
 xor ax, ax
 mov ds, ax
 mov es, ax
+mov ax, 0x8000
+mov ss, ax
+mov sp, 0xFF00
+mov cx, kernelreads
+read_loop:
+xor ax, ax
 mov ah, 0x42
 mov si, addr_packet
 int 0x13
-jnc entry
+jc err
+add word [addr_packet_transfer_buff_seg], (secreadcnt*512)/16
+add word [addr_packet_start_block], secreadcnt
+loop read_loop
+entry:
+cli             ; no interrupts
+xor ax,ax
+mov ds, ax
+lgdt [gdt_desc]  ; load gdt register
+mov eax, cr0    ; set pmode bit
+or al, 1
+mov cr0, eax
+jmp 08h:Pmode
+err:
 push 0xb800
 pop es
 xor di, di
@@ -20,15 +41,6 @@ loop err_print
 hlt_loop:
 hlt
 jmp hlt_loop
-entry:
-cli             ; no interrupts
-xor ax,ax
-mov ds, ax
-lgdt [gdt_desc]  ; load gdt register
-mov eax, cr0    ; set pmode bit
-or al, 1
-mov cr0, eax
-jmp 08h:Pmode
 [BITS 32]
 Pmode:
 mov eax, 0x10
@@ -70,6 +82,7 @@ string: db 'DISK ERROR'
 
 addr_packet:
 db 0x10, 0x00 ; size, reserved
-dw 0x39 ; blocks
-addr_packet_transfer_buff: dd 0x08000000 ; transfer buffer
+dw secreadcnt ; blocks
+addr_packet_transfer_buff_off: dw 0x0000 ; transfer buffer offset
+addr_packet_transfer_buff_seg: dw 0x0800 ; transfer buffer segment
 addr_packet_start_block: dq 1 ; start block

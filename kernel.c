@@ -202,10 +202,6 @@ void DrawScreen() {
     vga_text[80+42] = 0x1f00 | 'S';
     vga_text[80+43] = 0x1f00 | ' ';
     vga_text[80+44] = 0x1f00 | '-';
-
-    // Info line (4)
-    vga_text = &vga_text[80*4+2];
-    printStr("T to run tests - O to view file in hex", vga_text);
 }
 
 uint32_t OpenVol(VOLINFO *vi) {
@@ -258,7 +254,7 @@ void PrintFileList() {
         vga_text = nextLine(vga_text) + 3;
     }
 }
-void FileReadTest(uint8_t *path, VOLINFO *vi) {
+void HexViewTest(uint8_t *path, VOLINFO *vi) {
     uint32_t err;
     uint16_t *vga_text = (uint16_t *)0xb8000;
     uint8_t *scratch = (uint8_t *)0x20000;
@@ -389,11 +385,205 @@ void FileReadTest(uint8_t *path, VOLINFO *vi) {
         }
     }
 }
+void TextViewTest(uint8_t *path, VOLINFO *vi) {
+    uint16_t *vga_text = (uint16_t *)0xb8000;
+    uint32_t fileLen;
+    uint8_t *diskReadBuf = (uint8_t *)0x500000;
+    {
+        uint32_t err;
+        uint8_t *scratch = (uint8_t *)0x20000;
+        FILEINFO fi;
+        err = DFS_OpenFile(vi, path, DFS_READ, scratch, &fi);
+        if (err) {
+            vga_text += printStr("Open Error: ", vga_text);
+            printDword(err, vga_text);
+            return;
+        }
+        // file too large
+        if (fi.filelen > 0x300000) {
+            vga_text += printStr("File too large.", vga_text);
+            kbd_wait();
+            return;
+        }
+        DFS_Seek(&fi, 0, scratch);
+        if (fi.pointer != 0) {
+            vga_text += printStr("Seek Error", vga_text);
+            return;
+        }
+        err = DFS_ReadFile(&fi, scratch, diskReadBuf, &fileLen, fi.filelen);
+        if (err && err != DFS_EOF) {
+            vga_text += printStr("Read Error: ", vga_text);
+            printDword(err, vga_text);
+            return;
+        }
+    }
+    uint32_t *lineOffsets = (uint32_t *)0x400000;
+    uint32_t lastLine;
+    {
+        char nl;
+        uint8_t c = 0x0A; // start with a pretend newline
+        uint32_t line = -1; // start a pretend line behind
+        for (int32_t o = -1; o < (int32_t)fileLen; c = diskReadBuf[++o]) {
+            // newline
+            if (c == 0x0A) {
+                lineOffsets[++line] = o;
+            }
+            // file too large
+            if ((uintptr_t)&lineOffsets[line] >= 0x4FFFFC) {
+                vga_text += printStr("File too large.", vga_text);
+                kbd_wait();
+                return;
+            }
+        }
+        lastLine = line;
+    }
+    uint32_t currLine = 0;
+    char cont = 1;
+    uint32_t screenSize = 80*25;
+    char redraw = 1;
+    uint32_t linesOnScreen = 0;
+    for (;cont;) {
+        if (redraw) {
+            vga_text = (uint16_t *)0xb8000;
+            for (int i = 0; i < screenSize; i++)
+                vga_text[i] = 0x0f00;
+            vga_text += printStr((char*)path, vga_text);
+            vga_text += 2;
+            vga_text += printStr("Line: ", vga_text);
+            vga_text += printDec(currLine, vga_text);
+            vga_text += printChar('/', vga_text);
+            vga_text += printDec(lastLine, vga_text);
+            vga_text += printStr(" Scroll: Up/Down PgUp/PgDown Home/End", vga_text);
+            {
+                const char prnt[] = "Exit: E ";
+                vga_text = &((uint16_t*)0xb8000)[80-sizeof(prnt)];
+                vga_text += printStr((char*)prnt, vga_text);
+            }
+            for (vga_text = &((uint16_t*)0xb8000)[84]; vga_text < &((uint16_t*)0xb8000)[screenSize]; vga_text += 80)
+                *(uint8_t*)vga_text = '|';
+            vga_text = &((uint16_t*)0xb8000)[0];
+            uint32_t lineOff = 6;
+            uint8_t c = 0x0A; // start with a pretend newline
+            uint32_t line = currLine - 1; // start a pretend line behind
+            int32_t o = lineOffsets[currLine]; // the real or fake newline on previous line
+            linesOnScreen = screenSize/80;
+            for (; o < (int32_t)fileLen && vga_text < &((uint16_t*)0xb8000)[screenSize]; c = diskReadBuf[++o]) {
+                // newline
+                if (c == 0x0A) {
+                    vga_text = nextLine(vga_text);
+                    line++;
+                    {
+                        uint16_t *vga_tmp = vga_text;
+                        uint16_t decTmp[11];
+                        char cnt = printDec(line, decTmp);
+                        char off = cnt <= 4 ? 0 : cnt - 4;
+                        vga_tmp += 4 - (cnt - off);
+                        for (int i = off; i < cnt; i++, vga_tmp++)
+                            *(uint8_t*)vga_tmp = (uint8_t)decTmp[i];
+                    }
+                    vga_text += 6;
+                    lineOff = 6;
+                    continue;
+                } 
+                *(uint8_t*)vga_text = c;
+                vga_text++;
+                lineOff++;
+                if (lineOff == 80) { // last char
+                    vga_text += 6;
+                    lineOff = 6;
+                    linesOnScreen--;
+                }
+            }
+            redraw = 0;
+        }
+        uint16_t key = get_scancode();
+        union V86Regs_t regs;
+        FARPTR v86_entry;
+        switch (key & 0xff) {
+            case KEY_DOWN: // down
+                if (currLine < lastLine && lineOffsets[currLine+1] < fileLen) {
+                    currLine++;
+                    redraw = 1;
+                }
+                break;
+            case KEY_UP: // up
+                if ((currLine > 0 && lineOffsets[currLine-1] < fileLen) || currLine == 1) {
+                    currLine--;
+                    redraw = 1;
+                }
+                break;
+            case KEY_PGDOWN:
+                if (currLine+(linesOnScreen/2) <= lastLine && lineOffsets[currLine+(linesOnScreen/2)] < fileLen) {
+                    currLine += (linesOnScreen/2);
+                    redraw = 1;
+                } else goto end;
+                break;
+            case KEY_PGUP:
+                if (currLine > (linesOnScreen/2) && lineOffsets[currLine-(linesOnScreen/2)] < fileLen) {
+                    currLine -= (linesOnScreen/2);
+                    redraw = 1;
+                } else if (currLine <= (linesOnScreen/2)) {
+                    currLine = 0;
+                    redraw = 1;
+                }
+                break;
+            case KEY_HOME: home:
+                if (currLine != 0) {
+                    currLine = 0;
+                    redraw = 1;
+                }
+                break;
+            case KEY_END: end:
+                if (currLine != lastLine) {
+                    currLine = lastLine;
+                    redraw = 1;
+                }
+                break;
+            case KEY_E: // e
+                cont = 0;
+                break;
+            case KEY_F2:
+                if (screenSize != 80*25) {
+                    SetVideo25Lines();
+                    SetCursorDisabled();
+                    screenSize = 80*25;
+                    redraw = 1;
+                }
+                break;
+            case KEY_F5:
+                if (screenSize != 80*50) {
+                    SetVideo50Lines();
+                    SetCursorDisabled();
+                    screenSize = 80*50;
+                    redraw = 1;
+                }
+                break;
+            default:
+                break;
+        }
+    }
+}
+void File83ToPath(char *src, char *path) {
+    uint8_t tmp, trailingSpace;
+    for (trailingSpace=0, tmp = 0; tmp < 8 && src[tmp]; tmp++) {
+        path[tmp] = src[tmp];
+        if (src[tmp] == ' ') trailingSpace++;
+        else trailingSpace = 0;
+    }
+    tmp -= trailingSpace;
+    path[tmp++] = '.';
+    for (int i = 8; i < 11 && src[i]; i++, tmp++) {
+        path[tmp] = src[i];
+    }
+    path[tmp] = 0;
+}
 void FileSelect() {
     fileCount = 5;
     uint16_t *vga_text = (uint16_t *)0xb8000;
     int32_t fileHovered = 0, lastFileHovered = 0;
     for (char reload = 1;;) {
+        // Info line (4)
+        printStr("T to run tests - X to view in hex - V to view as text", &vga_text[80*4+2]);
         VOLINFO vi; DIRINFO di;
         if (reload) {
             OpenVol(&vi);
@@ -408,7 +598,7 @@ void FileSelect() {
         }
         *(uint8_t*)&vga_text[80*(6+fileHovered)+2] = '>';
         uint16_t key = get_scancode();
-        uint8_t path[13], tmp, trailingSpace;
+        uint8_t path[13];
         switch (key & 0xff) { // scancode component
             case 0x50: // down
                 fileHovered++;
@@ -423,22 +613,20 @@ void FileSelect() {
                 DrawScreen();
                 reload = 1;
                 break;
-            case 0x18: // o
-                for (trailingSpace=0, tmp = 0; tmp < 8 && entries[fileHovered].name[tmp]; tmp++) {
-                    path[tmp] = entries[fileHovered].name[tmp];
-                    if (entries[fileHovered].name[tmp] == ' ') trailingSpace++;
-                    else trailingSpace = 0;
-                }
-                tmp -= trailingSpace;
-                path[tmp++] = '.';
-                for (int i = 8; i < 11 && entries[fileHovered].name[i]; i++, tmp++) {
-                    path[tmp] = entries[fileHovered].name[i];
-                }
-                path[tmp] = 0;
-                FileReadTest(path, &vi);
+            case KEY_X:
+                File83ToPath((char*)entries[fileHovered].name, (char*)path);
+                HexViewTest(path, &vi);
                 SetVideo25Lines();
                 SetCursorDisabled();
                 DrawScreen();
+                break;
+            case KEY_V:
+                File83ToPath((char*)entries[fileHovered].name, (char*)path);
+                TextViewTest(path, &vi);
+                SetVideo25Lines();
+                SetCursorDisabled();
+                DrawScreen();
+                reload = 1;
                 break;
             default:
                 break;
