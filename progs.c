@@ -360,6 +360,9 @@ void ProgramLoadTest(uint8_t *path, VOLINFO *vi) {
     vga_text += printStr("Press any key to run.", vga_text);
     kbd_wait();
     uint32_t res = create_user_child(0x800000, 0x400000, 0);
+    union V86Regs_t regs;
+    regs.w.ax = 3; // text mode
+    V8086Int(0x10, &regs); 
     vga_text = (uint16_t *)0xb8000;
     for (int i = 0; i < 80*25; i++)
         vga_text[i] = 0x0f00;
