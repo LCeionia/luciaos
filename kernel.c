@@ -236,19 +236,43 @@ void PrintFileList() {
         vga_text = nextLine(vga_text) + 3;
     }
 }
+char IsDir(DIRENT *de) {
+    return de->attr & ATTR_DIRECTORY;
+}
 extern void create_child(uint32_t esp, uint32_t eip, uint32_t argc, ...);
 void FileSelect() {
+    uint8_t current_path[80];
+    uintptr_t current_path_end;
+    for (int i = 0; i < sizeof(current_path); i++)
+        current_path[i] = 0;
+    current_path[0] = '/';
+    current_path_end = 1;
     fileCount = 5;
     uint16_t *vga_text = (uint16_t *)0xb8000;
     int32_t fileHovered = 0, lastFileHovered = 0;
     for (char reload = 1;;) {
-        // Info line (4)
         DrawScreen();
-        printStr("T to run tests - X to view in hex - V to view as text - P to load as program", &vga_text[80*4+2]);
+        // Info line (4)
+        {
+            uint16_t *vga = &vga_text[80*4 + 79 - 24];
+            printStr("T to run tests", vga);
+            vga += 80;
+            printStr("X to view in hex", vga);
+            vga += 80;
+            printStr("V to view as text", vga);
+            vga += 80;
+            printStr("P to load as program", vga);
+            vga += 80;
+            printStr("O to open directory", vga);
+        }
+        printStr((char*)current_path, &vga_text[80*4 + 2]);
+        for (int i = 2; i < 15; i++)
+            *(uint8_t*)&vga_text[80*5 + i] = '-';
         VOLINFO vi; DIRINFO di;
         if (reload) {
             OpenVol(&vi);
-            OpenDir((uint8_t*)"", &vi, &di);
+            current_path[current_path_end] = 0;
+            OpenDir(current_path, &vi, &di);
             GetFileList(entries, &fileCount, &vi, &di);
             reload = 0;
         }
@@ -275,26 +299,52 @@ void FileSelect() {
                 reload = 1;
                 break;
             case KEY_P:
-                File83ToPath((char*)entries[fileHovered].name, (char*)path);
-                create_child(0x380000, (uintptr_t)ProgramLoadTest, 2, path, &vi);
+                File83ToPath((char*)entries[fileHovered].name, (char*)&current_path[current_path_end]);
+                create_child(0x380000, (uintptr_t)ProgramLoadTest, 2, current_path, &vi);
                 SetVideo25Lines();
                 SetCursorDisabled();
                 reload = 1;
                 break;
             case KEY_X:
-                File83ToPath((char*)entries[fileHovered].name, (char*)path);
+                File83ToPath((char*)entries[fileHovered].name, (char*)&current_path[current_path_end]);
                 //HexViewTest(path, &vi);
-                create_child(0x380000, (uintptr_t)HexViewTest, 2, path, &vi);
-                SetVideo25Lines();
-                SetCursorDisabled();
-                break;
-            case KEY_V:
-                File83ToPath((char*)entries[fileHovered].name, (char*)path);
-                //TextViewTest(path, &vi);
-                create_child(0x380000, (uintptr_t)TextViewTest, 2, path, &vi);
+                create_child(0x380000, (uintptr_t)HexViewTest, 2, current_path, &vi);
                 SetVideo25Lines();
                 SetCursorDisabled();
                 reload = 1;
+                break;
+            case KEY_V:
+                File83ToPath((char*)entries[fileHovered].name, (char*)&current_path[current_path_end]);
+                //TextViewTest(path, &vi);
+                create_child(0x380000, (uintptr_t)TextViewTest, 2, current_path, &vi);
+                SetVideo25Lines();
+                SetCursorDisabled();
+                reload = 1;
+                break;
+            case KEY_O:
+                if (IsDir(&entries[fileHovered])) {
+                    uint8_t tmp_path[80];
+                    File83ToPath((char*)entries[fileHovered].name, (char*)tmp_path);
+                    if ((*(uint32_t*)tmp_path & 0xffff) == ('.' | 0x0000)) {
+                        // Current dir, do nothing
+                        break;
+                    } else if ((*(uint32_t*)tmp_path & 0xffffff) == ('.' | '.' << 8 | 0x000000)) {
+                        // Up one directory
+                        for (current_path_end--;current_path_end >= 1 && current_path[current_path_end - 1] != '/'; current_path_end--);
+                        current_path[current_path_end] = 0;
+                        reload = 1;
+                        fileHovered = 0;
+                        break;
+                    }
+                    for (int i = 0; (i + current_path_end) < sizeof(current_path); i++)
+                        current_path[current_path_end + i] = tmp_path[i];
+                    for (;current_path_end < sizeof(current_path) - 2 && current_path[current_path_end]; current_path_end++);
+                    current_path[current_path_end] = '/';
+                    current_path_end++;
+                    current_path[current_path_end] = 0;
+                    reload = 1;
+                    fileHovered = 0;
+                }
                 break;
             default:
                 break;

@@ -54,9 +54,14 @@ void File83ToPath(char *src, char *path) {
     }
     tmp -= trailingSpace;
     path[tmp++] = '.';
+    trailingSpace = 0;
     for (int i = 8; i < 11 && src[i]; i++, tmp++) {
         path[tmp] = src[i];
+        if (src[i] == ' ') trailingSpace++;
+        else trailingSpace = 0;
     }
+    tmp -= trailingSpace;
+    if (trailingSpace == 3) tmp--;
     path[tmp] = 0;
 }
 
