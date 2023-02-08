@@ -22,6 +22,13 @@ void int_printDword(uint32_t v, uint16_t *buff) {
     int_printWord(v >> 16, buff);
     int_printWord(v, &buff[4]);
 }
+__attribute((__no_caller_saved_registers__))
+uintptr_t int_printStr(char *v, uint16_t *buff) {
+    char *s;
+    for (s = v;*s;s++,buff++)
+        *(char*)buff = *s;
+    return s - v;
+}
 
 struct __attribute__((__packed__)) IDTR_t {
     uint16_t size;
@@ -90,6 +97,8 @@ extern void real_test();
 extern void jmp_usermode_test();
 __attribute((__no_caller_saved_registers__))
 extern void return_prev_task();
+__attribute((__no_caller_saved_registers__))
+extern void error_environment(); // defined in kernel.c
 #define VALID_FLAGS 0xDFF
 __attribute__ ((interrupt))
 void gpf_handler_v86(struct interrupt_frame *frame, unsigned long error_code) {
@@ -220,6 +229,23 @@ void gpf_handler_v86(struct interrupt_frame *frame, unsigned long error_code) {
                 frame->eip = (uint16_t) (frame->eip + 1);
                 goto done;
             default:
+                {
+                    uint16_t *e = error_screen;
+                    for (int i = 0; i < 80; i++)
+                        e[i] = 0x0f00;
+                    e += int_printStr("Unknown instruction caused V86 GPF: ", e);
+                    *(uint32_t*)e = 0x1f001f00;
+                    int_printDword(*(uint32_t*)ip, e);
+                    e += 9;
+                    *(uint8_t*)e = '@';
+                    e += 1;
+                    int_printWord(frame->cs, e);
+                    e += 4;
+                    *(uint8_t*)e = ':';
+                    e += 1;
+                    int_printWord(frame->eip, e);
+                    error_environment();
+                }
                 for(;;);
         }
     }

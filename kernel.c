@@ -104,15 +104,16 @@ void ensure_v86env() {
     char *d = &_v86code;
     while (d < &_ev86code)
         *d++ = *s++;
-    for (int i = 0; i < 80*50; i++)
-        if (!(error_screen[i] & 0xFF00))
-            error_screen[i] = 0x0f00 | (error_screen[i] & 0x00FF);
 }
 
 __attribute((__no_caller_saved_registers__))
 extern void return_prev_task();
+__attribute((__no_caller_saved_registers__))
 void error_environment() {
     ensure_v86env();
+    for (int i = 0; i < 80*50; i++)
+        if (!(error_screen[i] & 0xFF00))
+            error_screen[i] = 0x0f00 | (error_screen[i] & 0x00FF);
     union V86Regs_t regs;
     FARPTR v86_entry = i386LinearToFp(v86TextMode);
     enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry), &regs);
@@ -126,7 +127,12 @@ void error_environment() {
     for(;;) {
         uint8_t key = get_scancode() & 0xff;
         if (key == KEY_E) break;
-        if (key == KEY_R) return_prev_task();
+        if (key == KEY_R) {
+            // reset error screen
+            for (int i = 0; i < (80*50)/2; i++)
+                ((uint32_t*)error_screen)[i] = 0x0f000f00;
+            return_prev_task();
+        }
     }
     v86_entry = i386LinearToFp(v86TransFlag);
     enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry), &regs);
@@ -288,6 +294,12 @@ void start() {
         *(char *)&vga_text[i] = h[i];
     vga_text = &vga_text[80];
 
+    // DL *should* be preserved
+    uint8_t dl;
+    asm volatile("nop":"=d"(dl));
+    vga_text += printByte(dl, vga_text);
+    vga_text++;
+
     uint32_t o;
     asm("mov %%esp, %%eax" : "=a"(o) : :);
     vga_text += printDword(o, vga_text);
@@ -303,15 +315,14 @@ void start() {
     //    *(char *)&vga_text[i+(80*3)] = c[i];
     //if (!apic) return;
 
-    char sse_str[] = "SSE support: ";
-    vga_text += printStr("SSE: ", vga_text);
-    char sse = check_sse();
-    if (!sse) {
-        *vga_text = 'N';
-        return;
-    }
-    vga_text += printStr("Y ", vga_text);
-    enable_sse();
+    //char sse_str[] = "SSE support: ";
+    //vga_text += printStr("SSE: ", vga_text);
+    //char sse = check_sse();
+    //if (!sse) {
+    //    *vga_text = 'N';
+    //}
+    //vga_text += printStr("Y ", vga_text);
+    //enable_sse();
 
     setup_binary();
 
@@ -327,7 +338,7 @@ void start() {
     //print_cr4();
     backup_ivtbios();
 
-    vga_text = &((word *)0xb8000)[80];
+    vga_text = &((word *)0xb8000)[160];
     vga_text += printStr("Press T for tests, or any key to continue... ", vga_text);
     uint8_t key = get_key();
     if (key == 't' || key == 'T')

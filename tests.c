@@ -40,7 +40,7 @@ void TestDiskRead() {
     regs.w.ax = 3; // text mode
     V8086Int(0x10, &regs); 
     vga_text += printStr("Done. Starting Disk Read... ", vga_text);
-    char *diskReadBuf = (char *)0x23000;
+    char *diskReadBuf = (char *)0x8000;
 	v86disk_addr_packet.transfer_buffer =
 		(uintptr_t)diskReadBuf & 0x000F |
 		(((uintptr_t)diskReadBuf & 0xFFFF0) << 12);

@@ -1,5 +1,6 @@
 *.o
 *.bin
+*.img
 *.lock
 *.com
 bx_enh_dbg.ini

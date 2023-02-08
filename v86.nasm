@@ -1,6 +1,5 @@
 [BITS 16]
 [SECTION .v86]
-
 global v86Interrupt
 v86Interrupt:
 int 0x00

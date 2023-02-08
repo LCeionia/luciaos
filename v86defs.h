@@ -41,7 +41,7 @@ union __attribute((__packed__)) V86Regs_t {
     } h;
 };
 
-extern void enter_v86(uint32_t ss, uint32_t esp, uint32_t cs, uint32_t eip, union V86Regs_t *regs);
+extern uint32_t enter_v86(uint32_t ss, uint32_t esp, uint32_t cs, uint32_t eip, union V86Regs_t *regs);
 
 void V8086Int(uint8_t interrupt, union V86Regs_t *regs);
 
@@ -76,3 +76,4 @@ typedef uint32_t FARPTR;
 
 FARPTR i386LinearToFp(void *ptr);
 
+void ensure_v86env();
