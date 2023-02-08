@@ -4,11 +4,11 @@ ENTRY(entry)
 SECTIONS {
     . = 0x100000;
 
-    .text : ALIGN(0x1000) {
+    .text : {
         *(.text);
     }
 
-    .data : ALIGN(0x1000) {
+    .data : {
         *(.data);
         *(.rodata);
         *(.rodata*);

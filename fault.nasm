@@ -24,6 +24,8 @@ jmp .hlt
 
 global _gpf_eax_save
 _gpf_eax_save: dd 0
+global _gpf_eflags_save
+_gpf_eflags_save: dd 0
 extern gpf_handler_v86
 global gpfHandler
 gpfHandler:
@@ -52,6 +54,7 @@ pop ecx
 pop ebx
 sti ; we shouldn't crash now?
 mov eax, dword [esp+16] ; EFLAGS
+mov dword [_gpf_eflags_save], eax ; save
 and eax, 1 << 17 ; VM flag
 test eax, eax
 pop eax

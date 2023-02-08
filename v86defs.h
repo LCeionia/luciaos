@@ -9,6 +9,8 @@ extern void v86TransFlag();
 extern void v86Interrupt();
 extern void v86TextMode();
 extern void v86DiskRead();
+extern void v86DiskGetGeometry();
+extern void v86DiskReadCHS();
 
 union __attribute((__packed__)) V86Regs_t {
     struct dword_regs { 

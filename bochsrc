@@ -11,7 +11,7 @@ floppy_bootsig_check: disabled=0
 floppya: type=none
 # no floppyb
 ata0: enabled=true, ioaddr1=0x1f0, ioaddr2=0x3f0, irq=14
-ata0-master: type=disk, path="virtdisk.bin", mode=flat, cylinders=2, heads=16, spt=63, sect_size=512, model="Generic 1234", biosdetect=auto, translation=auto
+ata0-master: type=disk, path="virtdisk.bin", mode=flat, cylinders=8, heads=16, spt=63, sect_size=512, model="Generic 1234", biosdetect=auto, translation=auto
 ata0-slave: type=none
 ata1: enabled=true, ioaddr1=0x170, ioaddr2=0x370, irq=15
 ata1-master: type=none

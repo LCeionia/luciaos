@@ -108,3 +108,23 @@ db 0x10, 0x00 ; size, reserved
 dw 0x1 ; blocks
 dd 0x23000000 ; transfer buffer 0x23000
 dq 0x1 ; start block
+
+global v86DiskGetGeometry
+v86DiskGetGeometry:
+mov ah, 8
+mov dl, 0x80
+int 0x13
+movzx eax, ch
+shl eax, 16
+mov al, cl
+mov ah, dh
+int 0x30
+ud2
+
+global v86DiskReadCHS
+v86DiskReadCHS:
+push 0x2000
+pop es
+int 0x13
+int 0x30
+ud2

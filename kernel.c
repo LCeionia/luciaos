@@ -297,6 +297,7 @@ void FileSelect() {
     }
 }
 
+uint32_t kernel_check= 0x12345678;
 void start() {
     word *vga_text = (word *)0xb8000;
     char h[] = "LuciaOS";
