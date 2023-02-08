@@ -97,7 +97,10 @@ mov ah, 0x42
 mov dl, 0x80 ; TODO get this from BIOS or something
 mov si, v86disk_addr_packet ; ds:si
 int 0x13
+jc .err
 int 0x30
+.err:
+ud2
 jmp $
 global v86disk_addr_packet
 v86disk_addr_packet:

@@ -109,18 +109,31 @@ void ensure_v86env() {
 __attribute((__no_caller_saved_registers__))
 extern void return_prev_task();
 __attribute((__no_caller_saved_registers__))
-void error_environment() {
+void error_environment(uint32_t stack0, uint32_t stack1, uint32_t stack2, uint32_t stack3, uint32_t stack4, uint32_t stack5) {
     ensure_v86env();
+    setup_interrupts(); // just in case
     for (int i = 0; i < 80*50; i++)
         if (!(error_screen[i] & 0xFF00))
             error_screen[i] = 0x0f00 | (error_screen[i] & 0x00FF);
     union V86Regs_t regs;
     FARPTR v86_entry = i386LinearToFp(v86TextMode);
     enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry), &regs);
-    char str0[] = "Oh noes!!! System error! ;c    ";
+    char str0[] = "Oh noes!!! System error! ;c     STKDMP:";
     printStr(str0, &error_screen[80]);
-    printStr("Press E for a fun recovery :3", &error_screen[80+sizeof(str0)]);
-    printStr("Press R to return to previous task", &error_screen[160+sizeof(str0)]);
+    uint16_t *tmp = &error_screen[80+sizeof(str0)-1];
+    tmp += printDword(stack0, tmp);
+    tmp++;
+    tmp += printDword(stack1, tmp);
+    tmp++;
+    tmp += printDword(stack2, tmp);
+    tmp = &error_screen[80*2+sizeof(str0)-1];
+    tmp += printDword(stack3, tmp);
+    tmp++;
+    tmp += printDword(stack4, tmp);
+    tmp++;
+    tmp += printDword(stack5, tmp);
+    printStr("Press E for a fun recovery :3", &error_screen[80*2]);
+    printStr("Press R to return to previous task", &error_screen[80*3]);
     uint16_t *vga_text = ((uint16_t*)0xB8000);
     for (int i = 0; i < 80*50; i++)
         vga_text[i] = error_screen[i];
@@ -225,6 +238,7 @@ void FileSelect() {
     int32_t fileHovered = 0, lastFileHovered = 0;
     for (char reload = 1;;) {
         // Info line (4)
+        DrawScreen();
         printStr("T to run tests - X to view in hex - V to view as text - P to load as program", &vga_text[80*4+2]);
         VOLINFO vi; DIRINFO di;
         if (reload) {
@@ -253,7 +267,6 @@ void FileSelect() {
             case 0x14: // t
                 create_child(0x380000, (uintptr_t)RunTests, 0);
                 SetCursorDisabled();
-                DrawScreen();
                 reload = 1;
                 break;
             case KEY_P:
@@ -261,7 +274,6 @@ void FileSelect() {
                 create_child(0x380000, (uintptr_t)ProgramLoadTest, 2, path, &vi);
                 SetVideo25Lines();
                 SetCursorDisabled();
-                DrawScreen();
                 reload = 1;
                 break;
             case KEY_X:
@@ -270,7 +282,6 @@ void FileSelect() {
                 create_child(0x380000, (uintptr_t)HexViewTest, 2, path, &vi);
                 SetVideo25Lines();
                 SetCursorDisabled();
-                DrawScreen();
                 break;
             case KEY_V:
                 File83ToPath((char*)entries[fileHovered].name, (char*)path);
@@ -278,7 +289,6 @@ void FileSelect() {
                 create_child(0x380000, (uintptr_t)TextViewTest, 2, path, &vi);
                 SetVideo25Lines();
                 SetCursorDisabled();
-                DrawScreen();
                 reload = 1;
                 break;
             default:
@@ -346,6 +356,21 @@ void start() {
     SetVideo25Lines();
     SetCursorDisabled();
     DrawScreen();
-    FileSelect();
+    uint32_t stack;
+    asm volatile("mov %%esp,%%eax":"=a"(stack));
+    stack = ((stack - 0x4000) / 0x1000) * 0x1000;
+    for (;;) {
+        create_child(stack, (uintptr_t)FileSelect, 0);
+        // should never return, so if it does,
+        // we have an error
+        SetVideo25Lines();
+        SetCursorDisabled();
+        DrawScreen();
+        vga_text = &((word*)0xb8000)[80*4 + 2];
+        vga_text += printStr("Error loading file select. Ensure the disk has a valid MBR and FAT partition.", vga_text);
+        vga_text = &((word*)0xb8000)[80*5 + 2];
+        vga_text += printStr("Press R to retry.", vga_text);
+        for (;(get_scancode() & 0xff) != KEY_R;);
+    }
 }
 

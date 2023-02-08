@@ -94,8 +94,8 @@ mov gs, ax
 mov ss, ax
 ; check A20
 .a20:
-mov edi, 0x101337
-mov esi, 0x001337
+mov edi, 0x107C00
+mov esi, 0x007C00
 mov [esi], esi
 mov [edi], edi
 cmpsd

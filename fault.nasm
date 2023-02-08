@@ -8,6 +8,14 @@ mov ax, 0x10
 mov es, ax
 ; move to 'safe' location
 mov ebp, 0x318000
+; copy stack a bit
+mov ecx, 0
+.copy:
+mov eax, [esp+ecx*4]
+mov [ebp+ecx*4], eax
+inc ecx
+cmp ecx, 6
+jl .copy
 mov esp, ebp
 call error_environment
 .hlt:
@@ -47,6 +55,7 @@ mov eax, dword [esp+16] ; EFLAGS
 and eax, 1 << 17 ; VM flag
 test eax, eax
 pop eax
+mov dword [_gpf_eax_save], eax
 jnz gpf_handler_v86
 jmp gpf_handler_32
 gpf_unhandled:

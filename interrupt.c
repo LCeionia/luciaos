@@ -99,6 +99,7 @@ __attribute((__no_caller_saved_registers__))
 extern void return_prev_task();
 __attribute((__no_caller_saved_registers__))
 extern void error_environment(); // defined in kernel.c
+extern uint32_t _gpf_eax_save;
 #define VALID_FLAGS 0xDFF
 __attribute__ ((interrupt))
 void gpf_handler_v86(struct interrupt_frame *frame, unsigned long error_code) {
@@ -233,8 +234,11 @@ void gpf_handler_v86(struct interrupt_frame *frame, unsigned long error_code) {
                     uint16_t *e = error_screen;
                     for (int i = 0; i < 80; i++)
                         e[i] = 0x0f00;
-                    e += int_printStr("Unknown instruction caused V86 GPF: ", e);
-                    *(uint32_t*)e = 0x1f001f00;
+                    e += int_printStr("Unknown instruction caused V86 GPF(", e);
+                    int_printWord(error_code, e);
+                    e += 4;
+                    e += int_printStr("):", e);
+                    *(uint32_t*)e = 0x7f007f00;
                     int_printDword(*(uint32_t*)ip, e);
                     e += 9;
                     *(uint8_t*)e = '@';
@@ -293,19 +297,14 @@ void set_trap_gate(uint8_t gate, void (*handler)()) {
     IDT[gate].type_attributes = 0x8F;
 }
 void setup_interrupts() {
+    asm volatile("cli");
     IDTR.size = 256*8 - 1;
     IDTR.offset = (uint32_t)(size_t)IDT;
     for (int i = 0; i < 256; i++) {
         *(uint64_t*)&IDT[i] = 0;
     }
 
-    for (int i = 0; i < 9; i++) {
-        set_trap_gate(i, unhandled_handler);
-    }
-    for (int i = 10; i < 15; i++) {
-        set_trap_gate(i, unhandled_handler);
-    }
-    for (int i = 16; i < 22; i++) {
+    for (int i = 0; i < 256; i++) {
         set_trap_gate(i, unhandled_handler);
     }
 
