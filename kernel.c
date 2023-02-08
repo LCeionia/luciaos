@@ -23,6 +23,11 @@ char check_sse() {
     asm("cpuid" : "=a"(eax), "=b"(ebx), "=c"(ecx), "=d"(edx) : "a"(1));
     return (edx & (1 << 25)) != 0;
 }
+char check_cmov() {
+    uint32_t eax, ebx, ecx, edx;
+    asm("cpuid" : "=a"(eax), "=b"(ebx), "=c"(ecx), "=d"(edx) : "a"(1));
+    return (edx & (1 << 15)) != 0;
+}
 
 void enable_sse() {
     asm volatile(
@@ -308,6 +313,14 @@ void start() {
     // DL *should* be preserved
     uint8_t dl;
     asm volatile("nop":"=d"(dl));
+
+    if (!check_cmov()) {
+        char cmov_err[] = "NO CMOV";
+        for (int i = 0; i < sizeof(cmov_err); i++)
+            *(char *)&vga_text[i] = cmov_err[i];
+        for (;;) asm volatile("hlt");
+    }
+
     vga_text += printByte(dl, vga_text);
     vga_text++;
 
