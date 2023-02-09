@@ -239,6 +239,16 @@ void PrintFileList() {
 char IsDir(DIRENT *de) {
     return de->attr & ATTR_DIRECTORY;
 }
+void ScancodeTest() {
+    uint16_t *vga = (uint16_t*)0xb8000;
+    uint16_t scancode;
+    while(((scancode = get_scancode()) & 0xff) != KEY_F1) {
+        vga += printWord(scancode, vga);
+        vga++;
+        if ((uintptr_t)vga >= 0xb8000+80*25*2)
+            vga = (uint16_t*)0xb8000;
+    }
+}
 extern void create_child(uint32_t esp, uint32_t eip, uint32_t argc, ...);
 void FileSelect() {
     uint8_t current_path[80];
@@ -255,15 +265,15 @@ void FileSelect() {
         // Info line (4)
         {
             uint16_t *vga = &vga_text[80*4 + 79 - 24];
-            printStr("T to run tests", vga);
-            vga += 80;
             printStr("X to view in hex", vga);
             vga += 80;
-            printStr("V to view as text", vga);
+            printStr("T to view as text", vga);
             vga += 80;
             printStr("P to load as program", vga);
             vga += 80;
             printStr("O to open directory", vga);
+            vga += 80;
+            printStr("F4 to run tests", vga);
         }
         printStr((char*)current_path, &vga_text[80*4 + 2]);
         for (int i = 2; i < 15; i++)
@@ -285,15 +295,15 @@ void FileSelect() {
         uint16_t key = get_scancode();
         uint8_t path[13];
         switch (key & 0xff) { // scancode component
-            case 0x50: // down
+            case KEY_DOWN: // down
                 fileHovered++;
                 if (fileHovered >= fileCount) fileHovered = 0;
                 break;
-            case 0x48: // up
+            case KEY_UP: // up
                 fileHovered--;
                 if (fileHovered < 0) fileHovered = fileCount - 1;
                 break;
-            case 0x14: // t
+            case KEY_F4:
                 create_child(0x380000, (uintptr_t)RunTests, 0);
                 SetCursorDisabled();
                 reload = 1;
@@ -313,7 +323,7 @@ void FileSelect() {
                 SetCursorDisabled();
                 reload = 1;
                 break;
-            case KEY_V:
+            case KEY_T:
                 File83ToPath((char*)entries[fileHovered].name, (char*)&current_path[current_path_end]);
                 //TextViewTest(path, &vi);
                 create_child(0x380000, (uintptr_t)TextViewTest, 2, current_path, &vi);
@@ -322,6 +332,7 @@ void FileSelect() {
                 reload = 1;
                 break;
             case KEY_O:
+            case 0x9C: // enter release
                 if (IsDir(&entries[fileHovered])) {
                     uint8_t tmp_path[80];
                     File83ToPath((char*)entries[fileHovered].name, (char*)tmp_path);
@@ -345,6 +356,10 @@ void FileSelect() {
                     reload = 1;
                     fileHovered = 0;
                 }
+                break;
+            case KEY_F6:
+                ScancodeTest();
+                reload = 1;
                 break;
             default:
                 break;

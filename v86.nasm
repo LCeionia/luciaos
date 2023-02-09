@@ -89,11 +89,10 @@ int 0x10
 int 0x30
 jmp $
 
-global v86DiskRead
-v86DiskRead:
-xor ax, ax ; TODO fix assuming we're in first 64k
-mov ds, ax
-mov ah, 0x42
+global v86DiskOp
+v86DiskOp:
+xor bx, bx ; TODO fix assuming we're in first 64k
+mov ds, bx
 mov dl, 0x80 ; TODO get this from BIOS or something
 mov si, v86disk_addr_packet ; ds:si
 int 0x13
