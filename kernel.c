@@ -237,6 +237,22 @@ void DrawScreen() {
     vga_text[80+44] = 0x1f00 | '-';
 }
 
+void SetPalette() {
+    union V86Regs_t regs;
+    regs.w.bx = 1; // index
+    regs.h.dh = 0x3D;
+    regs.h.ch = 0x2A;
+    regs.h.cl = 0x2E;
+    regs.w.ax = 0x1010; // set DAC color register
+    V8086Int(0x10, &regs);
+}
+// NOTE Does not set text mode
+void RestoreVGA() {
+    SetVideo25Lines();
+    SetCursorDisabled();
+    SetPalette();
+}
+
 int32_t fileCount;
 DIRENT *entries = (DIRENT*)0x400000;
 void PrintFileList() {
@@ -326,16 +342,20 @@ void FileSelect() {
                 break;
             case KEY_F4:
                 create_child(GetFreeStack(), (uintptr_t)RunTests, 0);
-                SetVideo25Lines();
-                SetCursorDisabled();
+                // Set Text mode, tests might return in gfx
+                {
+                    union V86Regs_t regs;
+                    regs.w.ax = 3;
+                    V8086Int(0x10, &regs);
+                }
+                RestoreVGA();
                 reload = 1;
                 break;
             case KEY_P:
                 if (IsDir(&entries[fileHovered])) break;
                 File83ToPath((char*)entries[fileHovered].name, (char*)&current_path[current_path_end]);
                 create_child(GetFreeStack(), (uintptr_t)ProgramLoadTest, 2, current_path, &vi);
-                SetVideo25Lines();
-                SetCursorDisabled();
+                RestoreVGA();
                 reload = 1;
                 break;
             case KEY_X:
@@ -343,8 +363,7 @@ void FileSelect() {
                 File83ToPath((char*)entries[fileHovered].name, (char*)&current_path[current_path_end]);
                 ClearProgBss();
                 create_child(GetFreeStack(), (uintptr_t)HexEditor, 2, current_path, &vi);
-                SetVideo25Lines();
-                SetCursorDisabled();
+                RestoreVGA();
                 reload = 1;
                 break;
             case KEY_T:
@@ -352,8 +371,7 @@ void FileSelect() {
                 File83ToPath((char*)entries[fileHovered].name, (char*)&current_path[current_path_end]);
                 //TextViewTest(path, &vi);
                 create_child(GetFreeStack(), (uintptr_t)TextViewTest, 2, current_path, &vi);
-                SetVideo25Lines();
-                SetCursorDisabled();
+                RestoreVGA();
                 reload = 1;
                 break;
             case KEY_O:
@@ -452,13 +470,12 @@ void start() {
     //print_cr4();
     backup_ivtbios();
 
-    vga_text = &((word *)0xb8000)[160];
-    vga_text += printStr("Press T for tests, or any key to continue... ", vga_text);
-    uint8_t key = get_key();
-    if (key == 't' || key == 'T')
-        create_child(GetFreeStack(), (uintptr_t)RunTests, 0);
-    SetVideo25Lines();
-    SetCursorDisabled();
+    //vga_text = &((word *)0xb8000)[160];
+    //vga_text += printStr("Press T for tests, or any key to continue... ", vga_text);
+    //uint8_t key = get_key();
+    //if (key == 't' || key == 'T')
+    //    create_child(GetFreeStack(), (uintptr_t)RunTests, 0);
+    RestoreVGA();
     DrawScreen();
     uint32_t stack;
     asm volatile("mov %%esp,%%eax":"=a"(stack));
@@ -467,8 +484,12 @@ void start() {
         create_child(stack, (uintptr_t)FileSelect, 0);
         // should never return, so if it does,
         // we have an error
-        SetVideo25Lines();
-        SetCursorDisabled();
+        {
+            union V86Regs_t regs;
+            FARPTR v86_entry = i386LinearToFp(v86TextMode);
+            enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry), &regs);
+        }
+        RestoreVGA();
         DrawScreen();
         vga_text = &((word*)0xb8000)[80*4 + 2];
         vga_text += printStr("Error loading file select. Ensure the disk has a valid MBR and FAT partition.", vga_text);

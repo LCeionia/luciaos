@@ -190,17 +190,17 @@ void RunTests() {
         *vga_text = (*vga_text & 0xFF00) | key;
         vga_text++;
     }
-    if (TestUser()) {
-        // Usermode returned wrong value
-        vga_text = nextLine(vga_text);
-        vga_text += printStr("Usermode test failed! Press any key to continue.", vga_text);
-    }
-    kbd_wait();
+    char userResult = TestUser();
     union V86Regs_t regs;
-    vga_text = (uint16_t *)0xb8000 + (80*5);
-    vga_text += printStr("Setting Text Mode... ", vga_text);
     regs.w.ax = 3; // text mode
     V8086Int(0x10, &regs); 
+    vga_text = (uint16_t *)0xb8000 + (80*5);
+    printStr("Press any key to continue.", vga_text);
+    if (userResult) {
+        // Usermode returned wrong value
+        printStr("Usermode test failed! Press any key to continue.", vga_text);
+    }
+    kbd_wait();
     TestCHS();
     kbd_wait();
     TestDiskRead();
