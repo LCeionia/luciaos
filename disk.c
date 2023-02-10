@@ -5,12 +5,13 @@
 
 extern void *memcpy(void *restrict dest, const void *restrict src, uintptr_t n);
 
-uintptr_t DiskCacheBlockSize = 0x1000; // 512 * 4
-uintptr_t DiskCacheSectorMask = 7;
-uintptr_t DiskCacheSectorSize = 8;
-uint8_t (*DiskCache)[128][0x1000] = (uint8_t (*)[128][0x1000])0x280000;
-uint32_t DiskCacheLastRead[128];
-uint32_t DiskCacheSector[128];
+#define DISKCACHEBLOCKSIZE 0x1000 // 512 * 4
+#define DISKCACHESECTORMASK 7
+#define DISKCACHESECTORSIZE 8
+#define DISKCACHEBLOCKCOUNT 128
+uint8_t (*DiskCache)[DISKCACHEBLOCKCOUNT][DISKCACHEBLOCKSIZE] = (uint8_t (*)[DISKCACHEBLOCKCOUNT][DISKCACHEBLOCKSIZE])0x280000;
+uint32_t DiskCacheLastRead[DISKCACHEBLOCKCOUNT];
+uint32_t DiskCacheSector[DISKCACHEBLOCKCOUNT];
 
 extern uint32_t _gpf_eax_save;
 extern uint32_t _gpf_eflags_save;
@@ -49,7 +50,7 @@ void Disk_SetupCHS() {
 	}
 	
 	// Init Cache
-	for (int i = 0; i < 128; i++) {
+	for (int i = 0; i < DISKCACHEBLOCKCOUNT; i++) {
 		DiskCacheLastRead[i] = 0;
 		DiskCacheSector[i] = -1;
 	}
@@ -57,12 +58,12 @@ void Disk_SetupCHS() {
 
 extern uint32_t TIMERVAL;
 uint8_t *FindInCache(uint32_t sector) {
-	uint32_t maskedSector = sector & ~DiskCacheSectorMask;
-	for (int i = 0; i < 128; i++) {
+	uint32_t maskedSector = sector & ~DISKCACHESECTORMASK;
+	for (int i = 0; i < DISKCACHEBLOCKCOUNT; i++) {
 		// Found
 		if (DiskCacheSector[i] == maskedSector) {
 			DiskCacheLastRead[i] = TIMERVAL;
-			return &(*DiskCache)[i][(sector & DiskCacheSectorMask) << 9];
+			return &(*DiskCache)[i][(sector & DISKCACHESECTORMASK) << 9];
 		}
 	}
 	// Not Found
@@ -72,13 +73,14 @@ uint8_t *FindInCache(uint32_t sector) {
 void AddToCache(uint32_t sector, uint8_t *buffer) {
 	uintptr_t lowestFoundTime = DiskCacheLastRead[0];
 	uintptr_t lowestFoundIdx = 0;
-	for (int i = 1; i < 32; i++) {
+	// TODO We should really use something more fast and less lazy
+	for (int i = 1; i < DISKCACHEBLOCKCOUNT; i++) {
 		if (DiskCacheLastRead[i] < lowestFoundTime) {
 			lowestFoundTime = DiskCacheLastRead[i];
 			lowestFoundIdx = i;
 		}
 	}
-	for (int i = 0; i < DiskCacheBlockSize / sizeof(uint32_t); i++)
+	for (int i = 0; i < DISKCACHEBLOCKSIZE / sizeof(uint32_t); i++)
 		((uint32_t *)((*DiskCache)[lowestFoundIdx]))[i] = ((uint32_t*)buffer)[i];
 	DiskCacheLastRead[lowestFoundIdx] = TIMERVAL;
 	DiskCacheSector[lowestFoundIdx] = sector;
@@ -116,8 +118,8 @@ uint32_t DFS_ReadSector(uint8_t unit, uint8_t *buffer, uint32_t sector, uint32_t
 	// TODO Do error handling
 	if (!useCHS) {
 		// LBA Read
-		v86disk_addr_packet.start_block = sector & ~DiskCacheSectorMask;
-		v86disk_addr_packet.blocks = DiskCacheSectorSize;
+		v86disk_addr_packet.start_block = sector & ~DISKCACHESECTORMASK;
+		v86disk_addr_packet.blocks = DISKCACHESECTORSIZE;
 		v86disk_addr_packet.transfer_buffer =
 			(uintptr_t)v86buf & 0x000F |
 			(((uintptr_t)v86buf & 0xFFFF0) << 12);
@@ -125,15 +127,15 @@ uint32_t DFS_ReadSector(uint8_t unit, uint8_t *buffer, uint32_t sector, uint32_t
 		regs.h.ah = 0x42;
 		FARPTR v86_entry = i386LinearToFp(v86DiskOp);
 		enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry), &regs);
-		if (v86disk_addr_packet.blocks != DiskCacheSectorSize) {
+		if (v86disk_addr_packet.blocks != DISKCACHESECTORSIZE) {
 			uint16_t *vga = error_screen;
 			vga += printStr("INT13 Read Secs: ", vga);
 			vga += printDec(v86disk_addr_packet.blocks, vga);
 			error_environment();
 			for(;;);
 		}
-		AddToCache(sector & ~DiskCacheSectorMask, v86buf);
-		v86buf = &v86buf[(sector & DiskCacheSectorMask) << 9];
+		AddToCache(sector & ~DISKCACHESECTORMASK, v86buf);
+		v86buf = &v86buf[(sector & DISKCACHESECTORMASK) << 9];
 	} else {
         uint32_t tmp = sector / secPerTrack;
         uint32_t sec = (sector % (secPerTrack)) + 1;

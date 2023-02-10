@@ -87,6 +87,19 @@ void setup_binary() {
         *d = 0;
 }
 
+extern char _bprogstart, _bprogend;
+// NOTE This is linked at the same place
+// as the load address of usermode code,
+// so things linked with bss here *must not*
+// call usermode code at the same place
+void ClearProgBss() {
+    // TODO Make sure there's no weird alignment stuff,
+    // although more BSS should always come after this
+    // ideally.
+    for (uint32_t *d = (uint32_t*)&_bprogstart; d < (uint32_t*)&_bprogend; d++)
+        *d = 0;
+}
+
 uint16_t error_screen[80*50]; // 50-line VGA screen of error content
 
 extern uint16_t *ivt;
@@ -154,6 +167,13 @@ void error_environment(uint32_t stack0, uint32_t stack1, uint32_t stack2, uint32
     }
     v86_entry = i386LinearToFp(v86TransFlag);
     enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry), &regs);
+}
+
+uint32_t GetFreeStack() {
+    uint32_t stack;
+    asm volatile("mov %%esp,%%eax":"=a"(stack));
+    stack = ((stack - 0x4000) / 0x1000) * 0x1000;
+    return stack;
 }
 
 /*
@@ -305,14 +325,14 @@ void FileSelect() {
                 if (fileHovered < 0) fileHovered = fileCount - 1;
                 break;
             case KEY_F4:
-                create_child(0x380000, (uintptr_t)RunTests, 0);
+                create_child(GetFreeStack(), (uintptr_t)RunTests, 0);
                 SetCursorDisabled();
                 reload = 1;
                 break;
             case KEY_P:
                 if (IsDir(&entries[fileHovered])) break;
                 File83ToPath((char*)entries[fileHovered].name, (char*)&current_path[current_path_end]);
-                create_child(0x380000, (uintptr_t)ProgramLoadTest, 2, current_path, &vi);
+                create_child(GetFreeStack(), (uintptr_t)ProgramLoadTest, 2, current_path, &vi);
                 SetVideo25Lines();
                 SetCursorDisabled();
                 reload = 1;
@@ -320,8 +340,8 @@ void FileSelect() {
             case KEY_X:
                 if (IsDir(&entries[fileHovered])) break;
                 File83ToPath((char*)entries[fileHovered].name, (char*)&current_path[current_path_end]);
-                //HexViewTest(path, &vi);
-                create_child(0x380000, (uintptr_t)HexViewTest, 2, current_path, &vi);
+                ClearProgBss();
+                create_child(GetFreeStack(), (uintptr_t)HexEditor, 2, current_path, &vi);
                 SetVideo25Lines();
                 SetCursorDisabled();
                 reload = 1;
@@ -330,7 +350,7 @@ void FileSelect() {
                 if (IsDir(&entries[fileHovered])) break;
                 File83ToPath((char*)entries[fileHovered].name, (char*)&current_path[current_path_end]);
                 //TextViewTest(path, &vi);
-                create_child(0x380000, (uintptr_t)TextViewTest, 2, current_path, &vi);
+                create_child(GetFreeStack(), (uintptr_t)TextViewTest, 2, current_path, &vi);
                 SetVideo25Lines();
                 SetCursorDisabled();
                 reload = 1;
@@ -435,7 +455,7 @@ void start() {
     vga_text += printStr("Press T for tests, or any key to continue... ", vga_text);
     uint8_t key = get_key();
     if (key == 't' || key == 'T')
-        create_child(0x380000, (uintptr_t)RunTests, 0);
+        create_child(GetFreeStack(), (uintptr_t)RunTests, 0);
     SetVideo25Lines();
     SetCursorDisabled();
     DrawScreen();

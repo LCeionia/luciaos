@@ -26,6 +26,13 @@ SECTIONS {
         AT ( ADDR(.data) + SIZEOF(.data) + SIZEOF(.realmode) )
         { _usercode = .; *(.user); _eusercode = .; }
 
+    .bss 0x400000 : {
+        _bprogstart = .;
+        hexedit.o(.bss);
+        _bprogend = .;
+        hexedit.o(.bss.end);
+    }
+
     . = ADDR(.data) + SIZEOF(.data) + SIZEOF(.realmode) + SIZEOF(.usermode);
 
     .bss : ALIGN(0x1000)
