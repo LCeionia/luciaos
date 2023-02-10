@@ -50,6 +50,7 @@ test eax, eax
 jz .loop
 ret
 
+global TIMERVAL
 TIMERVAL: dd 0
 global timerHandler
 timerHandler:

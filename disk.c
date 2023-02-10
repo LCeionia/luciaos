@@ -5,6 +5,13 @@
 
 extern void *memcpy(void *restrict dest, const void *restrict src, uintptr_t n);
 
+uintptr_t DiskCacheBlockSize = 0x1000; // 512 * 4
+uintptr_t DiskCacheSectorMask = 7;
+uintptr_t DiskCacheSectorSize = 8;
+uint8_t (*DiskCache)[128][0x1000] = (uint8_t (*)[128][0x1000])0x280000;
+uint32_t DiskCacheLastRead[128];
+uint32_t DiskCacheSector[128];
+
 extern uint32_t _gpf_eax_save;
 extern uint32_t _gpf_eflags_save;
 extern uint16_t error_screen[80*50]; // defined in kernel.c
@@ -14,6 +21,7 @@ uint32_t numHead;
 uint32_t secPerTrack;
 uint32_t maxCylinder;
 char useCHS = -1;
+// TODO This function also inits cache, make that go somewhere else
 void Disk_SetupCHS() {
 	union V86Regs_t regs;
 	// Check for INT 13 Extensions support
@@ -39,25 +47,77 @@ void Disk_SetupCHS() {
 		maxCylinder = ((_gpf_eax_save & 0xff0000) >> 16) | ((_gpf_eax_save & 0xc0) << 2);
 		useCHS = 1;
 	}
+	
+	// Init Cache
+	for (int i = 0; i < 128; i++) {
+		DiskCacheLastRead[i] = 0;
+		DiskCacheSector[i] = -1;
+	}
 }
+
+extern uint32_t TIMERVAL;
+uint8_t *FindInCache(uint32_t sector) {
+	uint32_t maskedSector = sector & ~DiskCacheSectorMask;
+	for (int i = 0; i < 128; i++) {
+		// Found
+		if (DiskCacheSector[i] == maskedSector) {
+			DiskCacheLastRead[i] = TIMERVAL;
+			return &(*DiskCache)[i][(sector & DiskCacheSectorMask) << 9];
+		}
+	}
+	// Not Found
+	return 0;
+}
+
+void AddToCache(uint32_t sector, uint8_t *buffer) {
+	uintptr_t lowestFoundTime = DiskCacheLastRead[0];
+	uintptr_t lowestFoundIdx = 0;
+	for (int i = 1; i < 32; i++) {
+		if (DiskCacheLastRead[i] < lowestFoundTime) {
+			lowestFoundTime = DiskCacheLastRead[i];
+			lowestFoundIdx = i;
+		}
+	}
+	for (int i = 0; i < DiskCacheBlockSize / sizeof(uint32_t); i++)
+		((uint32_t *)((*DiskCache)[lowestFoundIdx]))[i] = ((uint32_t*)buffer)[i];
+	DiskCacheLastRead[lowestFoundIdx] = TIMERVAL;
+	DiskCacheSector[lowestFoundIdx] = sector;
+}
+
+// NOTE Only updates one sector (512B)
+void UpdateCache(uint32_t sector, uint8_t *buffer) {
+	uint8_t *cache = FindInCache(sector);
+	// Not in cache, nothing to update
+	if (!cache) return;
+	for (int i = 0; i < SECTOR_SIZE/sizeof(uint32_t); i++)
+		((uint32_t*)cache)[i] = ((uint32_t*)buffer)[i];
+}
+
 uint32_t DFS_ReadSector(uint8_t unit, uint8_t *buffer, uint32_t sector, uint32_t count) {
 	// NOTE If the buffer provided is outside the 0x20000-0x2FE00 range,
 	// the function will use that buffer for the Virtual 8086 process
 	// and copy to the other buffer after
 	uint8_t *v86buf = buffer;
-	if ((uintptr_t)v86buf < 0x20000 || (uintptr_t)v86buf > 0x2FE00)
-		v86buf = (uint8_t *)0x20000;
+	if ((uintptr_t)v86buf >= 0x20000 && (uintptr_t)v86buf < 0x28000)
+		v86buf = (uint8_t *)0x28000;
+	else v86buf = (uint8_t *)0x20000;
 
 	// TODO This check should probably happen at the kernel level
 	if (useCHS == -1) {
 		Disk_SetupCHS();
 	}
 
+	uint8_t *cache = FindInCache(sector);
+	if (cache) {
+		memcpy(buffer, cache, count * SECTOR_SIZE);
+		return 0;
+	}
+
 	// TODO Do error handling
 	if (!useCHS) {
 		// LBA Read
-		v86disk_addr_packet.start_block = sector;
-		v86disk_addr_packet.blocks = count;
+		v86disk_addr_packet.start_block = sector & ~DiskCacheSectorMask;
+		v86disk_addr_packet.blocks = DiskCacheSectorSize;
 		v86disk_addr_packet.transfer_buffer =
 			(uintptr_t)v86buf & 0x000F |
 			(((uintptr_t)v86buf & 0xFFFF0) << 12);
@@ -65,6 +125,15 @@ uint32_t DFS_ReadSector(uint8_t unit, uint8_t *buffer, uint32_t sector, uint32_t
 		regs.h.ah = 0x42;
 		FARPTR v86_entry = i386LinearToFp(v86DiskOp);
 		enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry), &regs);
+		if (v86disk_addr_packet.blocks != DiskCacheSectorSize) {
+			uint16_t *vga = error_screen;
+			vga += printStr("INT13 Read Secs: ", vga);
+			vga += printDec(v86disk_addr_packet.blocks, vga);
+			error_environment();
+			for(;;);
+		}
+		AddToCache(sector & ~DiskCacheSectorMask, v86buf);
+		v86buf = &v86buf[(sector & DiskCacheSectorMask) << 9];
 	} else {
         uint32_t tmp = sector / secPerTrack;
         uint32_t sec = (sector % (secPerTrack)) + 1;
@@ -110,6 +179,7 @@ uint32_t DFS_WriteSector(uint8_t unit, uint8_t *buffer, uint32_t sector, uint32_
 		regs.w.ax = 0x4300;
 		FARPTR v86_entry = i386LinearToFp(v86DiskOp);
 		enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry), &regs);
+		UpdateCache(sector, buffer);
 	} else {
 		uint16_t *vga = error_screen;
 		vga += printStr("CHS Write Unimplemented", vga);
