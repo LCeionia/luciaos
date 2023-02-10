@@ -157,16 +157,16 @@ void error_environment(uint32_t stack0, uint32_t stack1, uint32_t stack2, uint32
         vga_text[i] = error_screen[i];
     for(;;) {
         uint8_t key = get_scancode() & 0xff;
-        if (key == KEY_E) break;
-        if (key == KEY_R) {
-            // reset error screen
-            for (int i = 0; i < (80*50)/2; i++)
-                ((uint32_t*)error_screen)[i] = 0x0f000f00;
-            return_prev_task();
+        if (key == KEY_E) {
+            v86_entry = i386LinearToFp(v86TransFlag);
+            enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry), &regs);
         }
+        if (key == KEY_R) break;
     }
-    v86_entry = i386LinearToFp(v86TransFlag);
-    enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry), &regs);
+    // reset error screen
+    for (int i = 0; i < (80*50)/2; i++)
+        ((uint32_t*)error_screen)[i] = 0x0f000f00;
+    return_prev_task();
 }
 
 uint32_t GetFreeStack() {
@@ -326,6 +326,7 @@ void FileSelect() {
                 break;
             case KEY_F4:
                 create_child(GetFreeStack(), (uintptr_t)RunTests, 0);
+                SetVideo25Lines();
                 SetCursorDisabled();
                 reload = 1;
                 break;
