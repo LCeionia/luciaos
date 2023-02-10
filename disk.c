@@ -100,7 +100,7 @@ uint32_t DFS_WriteSector(uint8_t unit, uint8_t *buffer, uint32_t sector, uint32_
 
 	// TODO Do error handling
 	if (!useCHS) {
-		// LBA Read
+		// LBA Write
 		v86disk_addr_packet.start_block = sector;
 		v86disk_addr_packet.blocks = count;
 		v86disk_addr_packet.transfer_buffer =

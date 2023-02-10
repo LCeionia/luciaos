@@ -309,6 +309,7 @@ void FileSelect() {
                 reload = 1;
                 break;
             case KEY_P:
+                if (IsDir(&entries[fileHovered])) break;
                 File83ToPath((char*)entries[fileHovered].name, (char*)&current_path[current_path_end]);
                 create_child(0x380000, (uintptr_t)ProgramLoadTest, 2, current_path, &vi);
                 SetVideo25Lines();
@@ -316,6 +317,7 @@ void FileSelect() {
                 reload = 1;
                 break;
             case KEY_X:
+                if (IsDir(&entries[fileHovered])) break;
                 File83ToPath((char*)entries[fileHovered].name, (char*)&current_path[current_path_end]);
                 //HexViewTest(path, &vi);
                 create_child(0x380000, (uintptr_t)HexViewTest, 2, current_path, &vi);
@@ -324,6 +326,7 @@ void FileSelect() {
                 reload = 1;
                 break;
             case KEY_T:
+                if (IsDir(&entries[fileHovered])) break;
                 File83ToPath((char*)entries[fileHovered].name, (char*)&current_path[current_path_end]);
                 //TextViewTest(path, &vi);
                 create_child(0x380000, (uintptr_t)TextViewTest, 2, current_path, &vi);
