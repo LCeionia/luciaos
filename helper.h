@@ -11,7 +11,7 @@ void SetVideo25Lines();
 void SetVideo50Lines();
 void SetCursorDisabled();
 
-uint16_t *nextLine(uint16_t *p);
+uint16_t *nextLine(uint16_t *p, uint16_t *b);
 
 uint32_t OpenVol(VOLINFO *vi);
 uint32_t OpenDir(uint8_t *path, VOLINFO *vi, DIRINFO *di);

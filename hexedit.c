@@ -283,7 +283,7 @@ void HexEditor(uint8_t *path, VOLINFO *vi) {
                     else vga_text += printChar(' ', vga_text);
                 }
                 vga_text += printChar('|', vga_text);
-                vga_text = nextLine(vga_text);
+                vga_text = nextLine(vga_text,(uint16_t*)0xb8000);
             }
             // Clear remainder of screen
             for (;vga_text < &((uint16_t*)0xb8000)[screenSize]; vga_text++)

@@ -1,8 +1,8 @@
 #include "helper.h"
 
-uint16_t *nextLine(uint16_t *p) {
+uint16_t *nextLine(uint16_t *p, uint16_t *b) {
     uintptr_t v = (uintptr_t)p;
-    return (uint16_t *)(v + (160 - ((v - 0xb8000) % 160)));
+    return (uint16_t *)(v + (160 - ((v - (uintptr_t)b) % 160)));
 }
 
 void V8086Int(uint8_t interrupt, union V86Regs_t *regs) {

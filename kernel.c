@@ -202,8 +202,8 @@ Protected Only (1MB+)
 400000 - 700000 Usermode Code (3mB)
 700000 - 800000 Usermode Stack (1mB)
 */
-void DrawScreen() {
-    uint16_t *vga_text = (uint16_t *)0xB8000;
+void DrawScreen(uint16_t *vga) {
+    uint16_t *vga_text = vga;
     // clear screen
     for (int i = 0; i < 80*25; i++)
         vga_text[i] = 0x1f00;
@@ -255,8 +255,8 @@ void RestoreVGA() {
 
 int32_t fileCount;
 DIRENT *entries = (DIRENT*)0x400000;
-void PrintFileList() {
-    uint16_t *vga_text = &((uint16_t *)0xb8000)[80*6+3];
+void PrintFileList(uint16_t *vga) {
+    uint16_t *vga_text = &((uint16_t *)vga)[80*6+3];
     for (int i = 0; i < fileCount; i++) {
         DIRENT *de = &entries[i];
         for (int i = 0; i < 11 && de->name[i]; i++) {
@@ -270,7 +270,7 @@ void PrintFileList() {
                 ((uint32_t)de->filesize_2 << 16) +
                 ((uint32_t)de->filesize_3 << 24), vga_text);
         *(uint8_t*)vga_text++ = 'B';
-        vga_text = nextLine(vga_text) + 3;
+        vga_text = nextLine(vga_text, vga) + 3;
     }
 }
 char IsDir(DIRENT *de) {
@@ -287,6 +287,7 @@ void ScancodeTest() {
     }
 }
 extern void create_child(uint32_t esp, uint32_t eip, uint32_t argc, ...);
+uint16_t FileSelectScreen[80*25];
 void FileSelect() {
     uint8_t current_path[80];
     uintptr_t current_path_end;
@@ -295,10 +296,10 @@ void FileSelect() {
     current_path[0] = '/';
     current_path_end = 1;
     fileCount = 5;
-    uint16_t *vga_text = (uint16_t *)0xb8000;
+    uint16_t *vga_text = (uint16_t *)FileSelectScreen;
     int32_t fileHovered = 0, lastFileHovered = 0;
     for (char reload = 1;;) {
-        DrawScreen();
+        DrawScreen(vga_text);
         // Info line (4)
         {
             uint16_t *vga = &vga_text[80*4 + 79 - 24];
@@ -323,12 +324,15 @@ void FileSelect() {
             GetFileList(entries, &fileCount, &vi, &di);
             reload = 0;
         }
-        PrintFileList();
+        PrintFileList(vga_text);
         if (lastFileHovered != fileHovered) {
             *(uint8_t*)&vga_text[80*(6+lastFileHovered)+2] = ' ';
             lastFileHovered = fileHovered;
         }
         *(uint8_t*)&vga_text[80*(6+fileHovered)+2] = '>';
+        // Copy to real VGA
+        for (int i = 0; i < 80*25; i++)
+            ((uint16_t*)0xb8000)[i] = vga_text[i];
         uint16_t key = get_scancode();
         uint8_t path[13];
         switch (key & 0xff) { // scancode component
@@ -476,7 +480,7 @@ void start() {
     //if (key == 't' || key == 'T')
     //    create_child(GetFreeStack(), (uintptr_t)RunTests, 0);
     RestoreVGA();
-    DrawScreen();
+    DrawScreen((uint16_t*)0xb8000);
     uint32_t stack;
     asm volatile("mov %%esp,%%eax":"=a"(stack));
     stack = ((stack - 0x4000) / 0x1000) * 0x1000;
@@ -490,7 +494,7 @@ void start() {
             enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry), &regs);
         }
         RestoreVGA();
-        DrawScreen();
+        DrawScreen((uint16_t*)0xb8000);
         vga_text = &((word*)0xb8000)[80*4 + 2];
         vga_text += printStr("Error loading file select. Ensure the disk has a valid MBR and FAT partition.", vga_text);
         vga_text = &((word*)0xb8000)[80*5 + 2];

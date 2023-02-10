@@ -87,7 +87,7 @@ void TextViewTest(uint8_t *path, VOLINFO *vi) {
             for (; o < (int32_t)fileLen && vga_text < &((uint16_t*)0xb8000)[screenSize]; c = diskReadBuf[++o]) {
                 // newline
                 if (c == 0x0A) {
-                    vga_text = nextLine(vga_text);
+                    vga_text = nextLine(vga_text,(uint16_t*)0xb8000);
                     line++;
                     {
                         uint16_t *vga_tmp = vga_text;
@@ -225,7 +225,7 @@ void ProgramLoadTest(uint8_t *path, VOLINFO *vi) {
     vga_text += printStr("\", ", vga_text);
     vga_text += printDec(successcount, vga_text);
     vga_text += printStr(" Bytes.", vga_text);
-    vga_text = nextLine(vga_text);
+    vga_text = nextLine(vga_text,(uint16_t*)0xb8000);
     vga_text += printStr("Press any key to run.", vga_text);
     kbd_wait();
     uint32_t res = create_user_child(0x800000, 0x400000, 0);
