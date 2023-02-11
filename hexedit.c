@@ -244,11 +244,15 @@ void HexEditor(uint8_t *path, VOLINFO *vi) {
         }
         if (redraw) {
             vga_text = (uint16_t *)0xb8000;
-            vga_text += printStr((char*)path, vga_text);
-            vga_text += printChar(fileChanged ? '*' : ' ', vga_text);
             {
                 const char prnt[] = "Scroll: Up/Down PgUp/PgDown Home/End             Exit: F1";
-                vga_text = &((uint16_t*)0xb8000)[80-sizeof(prnt)];
+                vga_text = &((uint16_t*)0xb8000)[0];
+                char pathBuff[22];
+                trimPath((char*)path, pathBuff, sizeof(pathBuff));
+                vga_text += printStr(pathBuff, vga_text);
+                vga_text += printChar(fileChanged ? '*' : ' ', vga_text);
+                for (;vga_text < &((uint16_t*)0xb8000)[80-sizeof(prnt)];)
+                    vga_text += printChar(' ', vga_text);
                 vga_text += printStr((char*)prnt, vga_text);
             }
             vga_text = &((uint16_t*)0xb8000)[80];
@@ -407,8 +411,12 @@ void HexEditor(uint8_t *path, VOLINFO *vi) {
     }
     if (!fileChanged) return;
     vga_text = (uint16_t*)0xb8000;
-    vga_text += printStr((char*)path, vga_text);
-    vga_text += printChar(fileChanged ? '*' : ' ', vga_text);
+    {
+        char pathBuff[23];
+        trimPath((char*)path, pathBuff, sizeof(pathBuff));
+        vga_text += printStr(pathBuff, vga_text);
+        vga_text += printChar(fileChanged ? '*' : ' ', vga_text);
+    }
     vga_text += printChar(' ', vga_text);
     vga_text += printStr("Save changes to file? (Y/N)", vga_text);
     for (;vga_text < &((uint16_t*)0xb8000)[80];vga_text++)

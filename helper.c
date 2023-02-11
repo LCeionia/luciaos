@@ -5,6 +5,22 @@ uint16_t *nextLine(uint16_t *p, uint16_t *b) {
     return (uint16_t *)(v + (160 - ((v - (uintptr_t)b) % 160)));
 }
 
+void trimPath(char *path, char *buff, uint32_t maxLen) {
+    int pathLen = 0;
+    for (;path[pathLen];pathLen++);
+    pathLen++;
+    if (pathLen < maxLen) {
+        for(int i = 0; i < pathLen; i++)
+            buff[i] = path[i];
+        return;
+    }
+    for (int i = 0; i < 3; i++)
+        buff[i] = '.';
+    for (int i = 3; i < maxLen; i++) {
+        buff[i] = path[pathLen-maxLen+i];
+    }
+}
+
 void V8086Int(uint8_t interrupt, union V86Regs_t *regs) {
     // Edit the v8086 code with the interrupt
     // Writing 4 bytes to ensure proper code
@@ -65,7 +81,7 @@ void File83ToPath(char *src, char *path) {
     path[tmp] = 0;
 }
 
-void GetFileList(DIRENT *entries, int32_t *entCount, VOLINFO *vi, DIRINFO *di) {
+void GetFileList(DIRENT *entries, int32_t *entCount, int32_t maxEntries, VOLINFO *vi, DIRINFO *di) {
     uint8_t *diskReadBuf = (uint8_t *)0x20000;
     DIRENT de;
     int32_t fileCount = 0;
@@ -77,6 +93,7 @@ void GetFileList(DIRENT *entries, int32_t *entCount, VOLINFO *vi, DIRINFO *di) {
                 d[i] = s[i];
             fileCount++;
         }
+        if (fileCount >= maxEntries) break;
     }
     *entCount = fileCount;
 }

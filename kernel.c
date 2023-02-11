@@ -253,12 +253,13 @@ void RestoreVGA() {
     SetPalette();
 }
 
-int32_t fileCount;
+int32_t fileCount, fileOffset;
 DIRENT *entries = (DIRENT*)0x400000;
+#define MAXDISPFILES 16
 void PrintFileList(uint16_t *vga) {
     uint16_t *vga_text = &((uint16_t *)vga)[80*6+3];
-    for (int i = 0; i < fileCount; i++) {
-        DIRENT *de = &entries[i];
+    for (int i = 0; (i + fileOffset) < fileCount && i < MAXDISPFILES; i++) {
+        DIRENT *de = &entries[i + fileOffset];
         for (int i = 0; i < 11 && de->name[i]; i++) {
             if (i == 8) { *(uint8_t*)vga_text = ' '; vga_text++; } // space for 8.3
             *(uint8_t *)vga_text = de->name[i];
@@ -297,7 +298,8 @@ void FileSelect() {
     current_path_end = 1;
     fileCount = 5;
     uint16_t *vga_text = (uint16_t *)FileSelectScreen;
-    int32_t fileHovered = 0, lastFileHovered = 0;
+    int32_t fileHovered = 0;
+    fileOffset = 0;
     for (char reload = 1;;) {
         DrawScreen(vga_text);
         // Info line (4)
@@ -321,15 +323,22 @@ void FileSelect() {
             OpenVol(&vi);
             current_path[current_path_end] = 0;
             OpenDir(current_path, &vi, &di);
-            GetFileList(entries, &fileCount, &vi, &di);
+            GetFileList(entries, &fileCount, INT32_MAX, &vi, &di);
             reload = 0;
         }
-        PrintFileList(vga_text);
-        if (lastFileHovered != fileHovered) {
-            *(uint8_t*)&vga_text[80*(6+lastFileHovered)+2] = ' ';
-            lastFileHovered = fileHovered;
+        if (fileHovered >= fileCount) {
+            fileOffset = fileCount - MAXDISPFILES;
+            fileHovered = fileCount - 1;
         }
-        *(uint8_t*)&vga_text[80*(6+fileHovered)+2] = '>';
+        if ((fileHovered - fileOffset) >= MAXDISPFILES)
+            fileOffset = fileHovered - MAXDISPFILES + 1;
+        else if ((fileHovered - fileOffset) < 0)
+            fileOffset = fileHovered;
+        PrintFileList(vga_text);
+        for (int i = 6; i < 24; i++) {
+            *(uint8_t*)&vga_text[80*i+2] = ' ';
+        }
+        *(uint8_t*)&vga_text[80*(6+(fileHovered-fileOffset))+2] = '>';
         // Copy to real VGA
         for (int i = 0; i < 80*25; i++)
             ((uint16_t*)0xb8000)[i] = vga_text[i];
@@ -338,7 +347,7 @@ void FileSelect() {
         switch (key & 0xff) { // scancode component
             case KEY_DOWN: // down
                 fileHovered++;
-                if (fileHovered >= fileCount) fileHovered = 0;
+                if (fileHovered >= fileCount) { fileHovered = 0; fileOffset = 0; }
                 break;
             case KEY_UP: // up
                 fileHovered--;
@@ -392,6 +401,7 @@ void FileSelect() {
                         current_path[current_path_end] = 0;
                         reload = 1;
                         fileHovered = 0;
+                        fileOffset = 0;
                         break;
                     }
                     for (int i = 0; (i + current_path_end) < sizeof(current_path); i++)
@@ -402,6 +412,7 @@ void FileSelect() {
                     current_path[current_path_end] = 0;
                     reload = 1;
                     fileHovered = 0;
+                    fileOffset = 0;
                 }
                 break;
             case KEY_F6:

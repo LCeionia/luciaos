@@ -62,16 +62,17 @@ void TextViewTest(uint8_t *path, VOLINFO *vi) {
             vga_text = (uint16_t *)0xb8000;
             for (int i = 0; i < screenSize; i++)
                 vga_text[i] = 0x0f00;
-            vga_text += printStr((char*)path, vga_text);
+            char pathBuff[22];
+            trimPath((char*)path, pathBuff, sizeof(pathBuff));
+            vga_text += printStr(pathBuff, vga_text);
             vga_text += 2;
-            vga_text += printStr("Line: ", vga_text);
             vga_text += printDec(currLine, vga_text);
             vga_text += printChar('/', vga_text);
             vga_text += printDec(lastLine, vga_text);
             vga_text += printStr(" Scroll: Up/Down PgUp/PgDown Home/End", vga_text);
             {
-                const char prnt[] = "Exit: E ";
-                vga_text = &((uint16_t*)0xb8000)[80-sizeof(prnt)];
+                const char prnt[] = "Exit: E";
+                vga_text = &((uint16_t*)0xb8000)[80-sizeof(prnt)+1];
                 vga_text += printStr((char*)prnt, vga_text);
             }
             for (vga_text = &((uint16_t*)0xb8000)[84]; vga_text < &((uint16_t*)0xb8000)[screenSize]; vga_text += 80)

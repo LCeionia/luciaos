@@ -12,8 +12,9 @@ void SetVideo50Lines();
 void SetCursorDisabled();
 
 uint16_t *nextLine(uint16_t *p, uint16_t *b);
+void trimPath(char *path, char *buff, uint32_t maxLen);
 
 uint32_t OpenVol(VOLINFO *vi);
 uint32_t OpenDir(uint8_t *path, VOLINFO *vi, DIRINFO *di);
 void File83ToPath(char *src, char *path);
-void GetFileList(DIRENT *entries, int32_t *entCount, VOLINFO *vi, DIRINFO *di);
+void GetFileList(DIRENT *entries, int32_t *entCount, int32_t maxEntries, VOLINFO *vi, DIRINFO *di);
