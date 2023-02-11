@@ -1,6 +1,4 @@
 #include "progs.h"
-#include "helper.h"
-#include "kbd.h"
 
 void TextViewTest(uint8_t *path, VOLINFO *vi) {
     uint16_t *vga_text = (uint16_t *)0xb8000;

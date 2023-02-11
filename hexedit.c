@@ -5,12 +5,12 @@
 #define BLOCKSHIFT 16 // blockSize = 1 << blockShift
 #define MAXFILESIZE 0x80000000 // 2GB
 #define TOTALBLOCKS (MAXFILESIZE/BLOCKSIZE)
-uint16_t writtenMap[TOTALBLOCKS];
-uint32_t blockLenMap[TOTALBLOCKS];
+uint16_t writtenMap[TOTALBLOCKS] __attribute__((section(".progbss")));;
+uint32_t blockLenMap[TOTALBLOCKS] __attribute__((section(".progbss")));;
 // NOTE This is linked at the end of program BSS section,
 // so that it can be expanded without telling C how much
 // it actually needs
-uint8_t writeStoreBase[BLOCKSIZE] __attribute__((section(".bss.end")));
+uint8_t writeStoreBase[BLOCKSIZE] __attribute__((section(".proglatebss")));
 void HexEditor(uint8_t *path, VOLINFO *vi) {
     uint32_t err;
     uint16_t *vga_text = (uint16_t *)0xb8000;
