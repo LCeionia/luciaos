@@ -10,6 +10,7 @@
 #include "tests.h"
 #include "progs.h"
 #include "helper.h"
+#include "disk.h"
 
 typedef unsigned short word;
 
@@ -63,15 +64,6 @@ uint32_t get_cr4() {
     return reg;
 }
 
-extern char _loadusercode, _usercode, _eusercode;
-void LoadUser() {
-    // Put Usermode code in proper place based on linker
-    char *s = &_loadusercode;
-    char *d = &_usercode;
-    while (d < &_eusercode)
-        *d++ = *s++;
-}
-
 extern char _edata, _v86code, _ev86code, _bstart, _bend;
 void setup_binary() {
     // Put V86 code in proper place based on linker
@@ -80,23 +72,8 @@ void setup_binary() {
     while (d < &_ev86code)
         *d++ = *s++;
 
-    LoadUser();
-
     // Clear BSS area
     for (d = &_bstart; d < &_bend; d++)
-        *d = 0;
-}
-
-extern char _bprogstart, _bprogend;
-// NOTE This is linked at the same place
-// as the load address of usermode code,
-// so things linked with bss here *must not*
-// call usermode code at the same place
-void ClearProgBss() {
-    // TODO Make sure there's no weird alignment stuff,
-    // although more BSS should always come after this
-    // ideally.
-    for (uint32_t *d = (uint32_t*)&_bprogstart; d < (uint32_t*)&_bprogend; d++)
         *d = 0;
 }
 
@@ -124,9 +101,11 @@ void ensure_v86env() {
         *d++ = *s++;
 }
 
-__attribute((__no_caller_saved_registers__))
+__attribute__((__no_caller_saved_registers__))
+__attribute__((__noreturn__))
 extern void return_prev_task();
-__attribute((__no_caller_saved_registers__))
+__attribute__((__no_caller_saved_registers__))
+__attribute__((__noreturn__))
 void error_environment(uint32_t stack0, uint32_t stack1, uint32_t stack2, uint32_t stack3, uint32_t stack4, uint32_t stack5) {
     ensure_v86env();
     setup_interrupts(); // just in case
@@ -172,7 +151,7 @@ void error_environment(uint32_t stack0, uint32_t stack1, uint32_t stack2, uint32
 uint32_t GetFreeStack() {
     uint32_t stack;
     asm volatile("mov %%esp,%%eax":"=a"(stack));
-    stack = ((stack - 0x4000) / 0x1000) * 0x1000;
+    stack = ((stack - 0x2000) / 0x1000) * 0x1000;
     return stack;
 }
 
@@ -254,12 +233,18 @@ void RestoreVGA() {
 }
 
 int32_t fileCount, fileOffset;
-DIRENT *entries = (DIRENT*)0x400000;
+// We store dir entries in usermode space,
+// which is nice because there's nothing after,
+// but it does mean we need to reload the dir
+// after every task called. This might be fine,
+// since the task might have modified the directory.
+extern char _USERMODE;
+DIRENT *const DirEntries = (DIRENT*)&_USERMODE;
 #define MAXDISPFILES 16
 void PrintFileList(uint16_t *vga) {
     uint16_t *vga_text = &((uint16_t *)vga)[80*6+3];
     for (int i = 0; (i + fileOffset) < fileCount && i < MAXDISPFILES; i++) {
-        DIRENT *de = &entries[i + fileOffset];
+        DIRENT *de = &DirEntries[i + fileOffset];
         for (int i = 0; i < 11 && de->name[i]; i++) {
             if (i == 8) { *(uint8_t*)vga_text = ' '; vga_text++; } // space for 8.3
             *(uint8_t *)vga_text = de->name[i];
@@ -323,7 +308,7 @@ void FileSelect() {
             OpenVol(&vi);
             current_path[current_path_end] = 0;
             OpenDir(current_path, &vi, &di);
-            GetFileList(entries, &fileCount, INT32_MAX, &vi, &di);
+            GetFileList(DirEntries, &fileCount, INT32_MAX, &vi, &di);
             reload = 0;
         }
         if (fileHovered >= fileCount) {
@@ -365,23 +350,22 @@ void FileSelect() {
                 reload = 1;
                 break;
             case KEY_P:
-                if (IsDir(&entries[fileHovered])) break;
-                File83ToPath((char*)entries[fileHovered].name, (char*)&current_path[current_path_end]);
+                if (IsDir(&DirEntries[fileHovered])) break;
+                File83ToPath((char*)DirEntries[fileHovered].name, (char*)&current_path[current_path_end]);
                 create_child(GetFreeStack(), (uintptr_t)ProgramLoadTest, 2, current_path, &vi);
                 RestoreVGA();
                 reload = 1;
                 break;
             case KEY_X:
-                if (IsDir(&entries[fileHovered])) break;
-                File83ToPath((char*)entries[fileHovered].name, (char*)&current_path[current_path_end]);
-                ClearProgBss();
+                if (IsDir(&DirEntries[fileHovered])) break;
+                File83ToPath((char*)DirEntries[fileHovered].name, (char*)&current_path[current_path_end]);
                 create_child(GetFreeStack(), (uintptr_t)HexEditor, 2, current_path, &vi);
                 RestoreVGA();
                 reload = 1;
                 break;
             case KEY_T:
-                if (IsDir(&entries[fileHovered])) break;
-                File83ToPath((char*)entries[fileHovered].name, (char*)&current_path[current_path_end]);
+                if (IsDir(&DirEntries[fileHovered])) break;
+                File83ToPath((char*)DirEntries[fileHovered].name, (char*)&current_path[current_path_end]);
                 //TextViewTest(path, &vi);
                 create_child(GetFreeStack(), (uintptr_t)TextViewTest, 2, current_path, &vi);
                 RestoreVGA();
@@ -389,9 +373,9 @@ void FileSelect() {
                 break;
             case KEY_O:
             case 0x9C: // enter release
-                if (IsDir(&entries[fileHovered])) {
+                if (IsDir(&DirEntries[fileHovered])) {
                     uint8_t tmp_path[80];
-                    File83ToPath((char*)entries[fileHovered].name, (char*)tmp_path);
+                    File83ToPath((char*)DirEntries[fileHovered].name, (char*)tmp_path);
                     if ((*(uint32_t*)tmp_path & 0xffff) == ('.' | 0x0000)) {
                         // Current dir, do nothing
                         break;
@@ -425,6 +409,45 @@ void FileSelect() {
     }
 }
 
+void SystemRun() {
+    uint16_t *vga_text = (word *)0xb8000;
+    RestoreVGA();
+    DrawScreen((uint16_t*)0xb8000);
+
+    // Check for FAT partition
+    {
+        VOLINFO vi;
+        // TODO Check partitions beyond 0
+        while (OpenVol(&vi)) {
+            vga_text = &((word*)0xb8000)[80*4 + 2];
+            vga_text += printStr("Error loading file select. Ensure the disk has a valid MBR and FAT partition.", vga_text);
+            vga_text = &((word*)0xb8000)[80*5 + 2];
+            vga_text += printStr("Press R to retry.", vga_text);
+            for (;(get_scancode() & 0xff) != KEY_R;);
+        }
+    }
+
+    for (;;) {
+        create_child(GetFreeStack(), (uintptr_t)FileSelect, 0);
+        // should never return, so if it does,
+        // we have an error
+        {
+            union V86Regs_t regs;
+            FARPTR v86_entry = i386LinearToFp(v86TextMode);
+            enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry), &regs);
+        }
+        RestoreVGA();
+        DrawScreen((uint16_t*)0xb8000);
+        vga_text = &((word*)0xb8000)[80*4 + 2];
+        vga_text += printStr("Error loading file select. Ensure the disk has a valid MBR and FAT partition.", vga_text);
+        vga_text = &((word*)0xb8000)[80*5 + 2];
+        vga_text += printStr("Press R to retry.", vga_text);
+        for (;(get_scancode() & 0xff) != KEY_R;);
+    }
+}
+
+__attribute__((__noreturn__))
+extern void triple_fault();
 uint32_t kernel_check = 0x12345678;
 void start() {
     word *vga_text = (word *)0xb8000;
@@ -471,46 +494,26 @@ void start() {
     //vga_text += printStr("Y ", vga_text);
     //enable_sse();
 
-    setup_binary();
-
-    // edit
-    setup_interrupts();
-    setup_tss();
-    init_paging();
     //print_flags();
     vga_text += printStr("CR0:", vga_text);
     vga_text += printDword(get_cr0(), vga_text);
     vga_text++;
     //print_cr3();
     //print_cr4();
-    backup_ivtbios();
 
-    //vga_text = &((word *)0xb8000)[160];
-    //vga_text += printStr("Press T for tests, or any key to continue... ", vga_text);
-    //uint8_t key = get_key();
-    //if (key == 't' || key == 'T')
-    //    create_child(GetFreeStack(), (uintptr_t)RunTests, 0);
-    RestoreVGA();
-    DrawScreen((uint16_t*)0xb8000);
-    uint32_t stack;
-    asm volatile("mov %%esp,%%eax":"=a"(stack));
-    stack = ((stack - 0x4000) / 0x1000) * 0x1000;
-    for (;;) {
-        create_child(stack, (uintptr_t)FileSelect, 0);
-        // should never return, so if it does,
-        // we have an error
-        {
-            union V86Regs_t regs;
-            FARPTR v86_entry = i386LinearToFp(v86TextMode);
-            enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry), &regs);
-        }
-        RestoreVGA();
-        DrawScreen((uint16_t*)0xb8000);
-        vga_text = &((word*)0xb8000)[80*4 + 2];
-        vga_text += printStr("Error loading file select. Ensure the disk has a valid MBR and FAT partition.", vga_text);
-        vga_text = &((word*)0xb8000)[80*5 + 2];
-        vga_text += printStr("Press R to retry.", vga_text);
-        for (;(get_scancode() & 0xff) != KEY_R;);
-    }
+    // Setup system
+    setup_binary();
+    setup_interrupts();
+    setup_tss();
+    init_paging();
+    backup_ivtbios();
+    InitDisk();
+
+    create_child(GetFreeStack(), (uintptr_t)SystemRun, 0);
+    // If this returns, something is *very* wrong, reboot the system
+    // TODO Maybe try to recover?
+
+    // Triple fault
+    triple_fault();
 }
 

@@ -53,6 +53,7 @@ uint32_t OpenVol(VOLINFO *vi) {
     uint8_t pactive, ptype;
     uint32_t pstart, psize;
     pstart = DFS_GetPtnStart(0, diskReadBuf, 0, &pactive, &ptype, &psize);
+    if (pstart == -1) return -1;
     return DFS_GetVolInfo(0, diskReadBuf, pstart, vi);
 }
 uint32_t OpenDir(uint8_t *path, VOLINFO *vi, DIRINFO *di) {

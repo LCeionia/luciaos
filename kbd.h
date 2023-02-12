@@ -6,6 +6,9 @@ __attribute((__no_caller_saved_registers__))
 void kbd_wait();
 
 __attribute((__no_caller_saved_registers__))
+void kbd_clear();
+
+__attribute((__no_caller_saved_registers__))
 uint8_t get_key();
 
 __attribute((__no_caller_saved_registers__))

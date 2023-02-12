@@ -95,9 +95,11 @@ extern uint16_t error_screen[80*50]; // defined in kernel.c
 extern uint16_t *ivt;
 extern void real_test();
 extern void jmp_usermode_test();
-__attribute((__no_caller_saved_registers__))
+__attribute__((__no_caller_saved_registers__))
+__attribute__((__noreturn__))
 extern void return_prev_task();
-__attribute((__no_caller_saved_registers__))
+__attribute__((__no_caller_saved_registers__))
+__attribute__((__noreturn__))
 extern void error_environment(); // defined in kernel.c
 extern uint32_t _gpf_eax_save;
 #define VALID_FLAGS 0xDFF
@@ -333,3 +335,11 @@ void setup_interrupts() {
     asm volatile("sti");
 }
 
+__attribute__((__noreturn__))
+void triple_fault() {
+    IDTR.size = 0;
+    asm volatile("lidt %0": : "m"(IDTR));
+    asm volatile("sti");
+    asm volatile("int $1");
+    for(;;);
+}

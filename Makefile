@@ -1,5 +1,5 @@
 objects = entry.o kernel.o task.o handler.o interrupt.o v86.o print.o tss.o dosfs/dosfs.o gdt.o\
-		  usermode.o paging.o fault.o tests.o kbd.o helper.o progs.o disk.o hexedit.o
+		  paging.o fault.o tests.o kbd.o helper.o progs.o disk.o hexedit.o textedit.o
 CFLAGS = -target "i686-elf" -m32 -mgeneral-regs-only -ffreestanding\
 		 -march=i686 -fno-stack-protector -Wno-int-conversion -nostdlib -c
 LFLAGS = -Wl,--gc-sections -Wl,--print-gc-sections -m32 -nostartfiles -nostdlib
@@ -18,11 +18,14 @@ $(OUTFILE): boot.bin kernel.bin
 	# Write kernel beyond boot sector, maximum 128K (256 sectors)
 	dd bs=512 count=256 seek=1 conv=notrunc if=kernel.bin of=$@
 
-boot.bin: boot.nasm
-	nasm -o $@ $<
+kernel.bin: out.o link.ld usermode.o
+	clang $(LFLAGS) -Wl,-M -Tlink.ld -ffreestanding -o $@ out.o usermode.o
 
-kernel.bin: out.o link.ld
-	clang $(LFLAGS) -Wl,-M -Tlink.ld -ffreestanding -o $@ $<
+usermode.o: usermode.bin
+	objcopy -I binary -O elf32-i386 -B i386 $< $@
+
+%.bin: %.nasm
+	nasm -o $@ $<
 
 out.o: $(objects)
 	clang $(LFLAGS) -e entry -r -o $@ $^
@@ -38,4 +41,4 @@ virtdisk:
 	echo -n -e '\x55\xaa' | dd bs=1 seek=510 conv=notrunc of=virtdisk.bin
 
 clean:
-	rm -f $(objects) out.o kernel.bin boot.bin
+	rm -f $(objects) out.o kernel.bin boot.bin usermode.bin

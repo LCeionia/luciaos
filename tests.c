@@ -13,18 +13,21 @@ void TestV86() {
     regs.d.eax = 0x66666666;
     FARPTR v86_entry = i386LinearToFp(v86Test);
     enter_v86(0x8000, 0xFF00, FP_SEG(v86_entry), FP_OFF(v86_entry), &regs);
+    uint16_t *vga_text = (uint16_t *)0xb8000 + (80*2);
+    vga_text += printStr("Done.", vga_text);
 }
-extern char _loadusercode, _usercode, _eusercode;
+extern char _USERMODE;
+extern char _binary_usermode_bin_start, _binary_usermode_bin_end;
 void ReloadUser() {
     // Put Usermode code in proper place based on linker
-    char *s = &_loadusercode;
-    char *d = &_usercode;
-    while (d < &_eusercode)
+    char *s = &_binary_usermode_bin_start;
+    char *d = (char *)&_USERMODE;
+    while (s < &_binary_usermode_bin_end)
         *d++ = *s++;
 }
 char TestUser() {
     ReloadUser();
-    char *vga = (char *)(uintptr_t)create_user_child(0x800000, (uintptr_t)user_test, 0);
+    char *vga = (char *)(uintptr_t)create_user_child(0x800000, (uintptr_t)&_USERMODE, 0);
     if ((uintptr_t)vga != 0xA0000) {
         return 1;
     }
@@ -34,24 +37,40 @@ char TestUser() {
     return 0;
 }
 void TestDiskRead() {
-    //vga_text += printStr("Starting Disk Read... ", vga_text);
-    union V86Regs_t regs;
     char *diskReadBuf = (char *)0x20000;
-	v86disk_addr_packet.transfer_buffer =
-		(uintptr_t)diskReadBuf & 0x000F |
-		(((uintptr_t)diskReadBuf & 0xFFFF0) << 12);
-    regs.h.ah = 0x42;
-    FARPTR v86_entry = i386LinearToFp(v86DiskOp);
-    enter_v86(0x0000, 0x8000, FP_SEG(v86_entry), FP_OFF(v86_entry), &regs);
-    uint16_t *vga_text = (uint16_t *)0xb8000;
-    for (int i = 0; i < (80*25)/2; i++) {
-        printByte(diskReadBuf[i], &vga_text[i*2]);
+    v86disk_addr_packet.transfer_buffer =
+        (uintptr_t)diskReadBuf & 0x000F |
+        (((uintptr_t)diskReadBuf & 0xFFFF0) << 12);
+    v86disk_addr_packet.start_block = 0;
+    v86disk_addr_packet.blocks = 2;
+    union V86Regs_t regs;
+    kbd_clear();
+    for (;;) {
+        regs.h.ah = 0x42;
+        FARPTR v86_entry = i386LinearToFp(v86DiskOp);
+        enter_v86(0x0000, 0x8000, FP_SEG(v86_entry), FP_OFF(v86_entry), &regs);
+        uint16_t *vga_text = (uint16_t *)0xb8000;
+        for (int i = 0; i < 25; i++) {
+            uint16_t *vga_line = &vga_text[i*80];
+            for (int j = 0; j < 26; j++) {
+                printByte(diskReadBuf[i*26 + j], &vga_line[j*2]);
+                *(uint8_t*)&vga_line[j + (26*2)+1] = diskReadBuf[i*26 + j];
+            }
+        }
+        uint16_t scan = get_scancode();
+        if ((scan & 0xff) == KEY_PGUP) {
+            if(v86disk_addr_packet.start_block > 0) v86disk_addr_packet.start_block--;
+        } else if ((scan & 0xff) == KEY_PGDOWN)
+            v86disk_addr_packet.start_block++;
+        else if (scan & 0xff00) break;
     }
 }
 extern uint32_t _gpf_eax_save;
 extern uint32_t _gpf_eflags_save;
 void TestCHS() {
     uint16_t *vga_text = (uint16_t*)0xb8000;
+    for (int i = 0; i < 80*25; i++)
+        vga_text[i] = 0x0f00;
     printStr("CHS Test ", vga_text);
     // CHS Read
     union V86Regs_t regs;
@@ -175,55 +194,77 @@ void TestFAT() {
 }
 
 void RunTests() {
+    char doTests = 1;
     uint16_t *vga_text = (uint16_t*)0xb8000;
-    for (int i = 0; i < 80*25; i++)
-        vga_text[i] = 0x1f00;
     uint8_t key;
-    vga_text += printStr("V86 Test... ", vga_text);
-    //asm ("xchgw %bx, %bx");
-    TestV86(); // has int 3 wait in v86
-    vga_text = (uint16_t *)0xb8000 + (80*3);
-    vga_text += printStr("Done. Press 'N' for next test.", vga_text);
-    for(;;) {
-        key = get_key();
-        if (key == 'N' || key == 'n') break;
-        *vga_text = (*vga_text & 0xFF00) | key;
-        vga_text++;
-    }
-    char userResult = TestUser();
-    union V86Regs_t regs;
-    regs.w.ax = 3; // text mode
-    V8086Int(0x10, &regs); 
-    vga_text = (uint16_t *)0xb8000 + (80*5);
-    printStr("Press any key to continue.", vga_text);
-    if (userResult) {
-        // Usermode returned wrong value
-        printStr("Usermode test failed! Press any key to continue.", vga_text);
-    }
-    kbd_wait();
-    TestCHS();
-    kbd_wait();
-    TestDiskRead();
-    kbd_wait();
-    TestFAT();
+    for (char l = 1;l;) {
+        if (doTests) {
+            vga_text = (uint16_t*)0xb8000;
+            for (int i = 0; i < 80*25; i++)
+                vga_text[i] = 0x1f00;
+            vga_text += printStr("V86 Test... ", vga_text);
+            //asm ("xchgw %bx, %bx");
+            TestV86(); // has int 3 wait in v86
+            vga_text = (uint16_t *)0xb8000 + (80*3);
+            vga_text += printStr("Press 'N' for next test.", vga_text);
+            for(;;) {
+                key = get_key();
+                if (key == 'N' || key == 'n') break;
+                *vga_text = (*vga_text & 0xFF00) | key;
+                vga_text++;
+            }
+            if (TestUser()) {
+                union V86Regs_t regs;
+                regs.w.ax = 3; // text mode
+                V8086Int(0x10, &regs); 
+                vga_text = (uint16_t *)0xb8000 + (80*5);
+                printStr("Usermode test failed! Press any key to continue.", vga_text);
+                kbd_wait();
+            } else {
+                kbd_wait();
+                union V86Regs_t regs;
+                regs.w.ax = 3; // text mode
+                V8086Int(0x10, &regs); 
+            }
+            doTests = 0;
+        }
 
-    vga_text = &((uint16_t*)0xB8000)[80*16];
-    vga_text += printStr("Press E for a flagrant system error. Press C to continue... ", vga_text);
-    for (char l = 1;l;) { switch (key = get_key()) {
-        case 'e':
-        case 'E':
-            // flagrant system error
-            *((uint8_t*)0x1000000) = 0;
-            break;
-        case 'c':
-        case 'C':
-            // continue
-            l = 0;
-            break;
-        default:
-            *vga_text = (*vga_text & 0xFF00) | key;
-            vga_text++;
-            break;
-    }}
+        vga_text = &((uint16_t*)0xB8000)[80*14];
+        vga_text += printStr("Press E for a flagrant system error.  ", vga_text);
+        vga_text = &((uint16_t*)0xB8000)[80*15];
+        vga_text += printStr("Press D for disk tests.               ", vga_text);
+        vga_text = &((uint16_t*)0xB8000)[80*16];
+        vga_text += printStr("Press R to repeat tests.              ", vga_text);
+        vga_text = &((uint16_t*)0xB8000)[80*17];
+        vga_text += printStr("Press C to continue...                ", vga_text);
+        switch (key = get_key()) {
+            case 'e':
+            case 'E':
+                // flagrant system error
+                *((uint8_t*)0x1000000) = 0;
+                break;
+            case 'c':
+            case 'C':
+                // continue
+                l = 0;
+                break;
+            case 'd':
+            case 'D':
+                // disk tests
+                TestCHS();
+                kbd_wait();
+                TestDiskRead();
+                TestFAT();
+                break;
+            case 'r':
+            case 'R':
+                doTests = 1;
+                break;
+            default:
+                *vga_text = (*vga_text & 0xFF00) | key;
+                vga_text++;
+                break;
+        }
+    }
 }
 

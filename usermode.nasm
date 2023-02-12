@@ -1,4 +1,5 @@
-[SECTION .user]
+[BITS 32]
+[ORG 0x400000]
 global user_test
 user_test:
 mov dword [0xb8000], 0x0f000f00 | 'U' | 's' << 16

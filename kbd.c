@@ -72,6 +72,13 @@ void keyboardHandler(struct interrupt_frame *frame) {
 }
 
 __attribute((__no_caller_saved_registers__))
+void kbd_clear() {
+    _KBDWAIT = 0;
+    _LSTKEY_ASCII = 0;
+    _LSTKEY_SCAN = 0;
+}
+
+__attribute((__no_caller_saved_registers__))
 void kbd_wait() {
     _KBDWAIT = 0;
     while(!_KBDWAIT) {
