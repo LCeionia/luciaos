@@ -101,6 +101,14 @@ void ensure_v86env() {
         *d++ = *s++;
 }
 
+uint32_t _ERRORCODE = 0;
+__attribute__((__no_caller_saved_registers__))
+uint32_t check_error_code() {
+    uint32_t v = _ERRORCODE;
+    _ERRORCODE = 0;
+    return v;
+}
+
 __attribute__((__no_caller_saved_registers__))
 __attribute__((__noreturn__))
 extern void return_prev_task();
@@ -145,6 +153,7 @@ void error_environment(uint32_t stack0, uint32_t stack1, uint32_t stack2, uint32
     // reset error screen
     for (int i = 0; i < (80*50)/2; i++)
         ((uint32_t*)error_screen)[i] = 0x0f000f00;
+    _ERRORCODE = -1;
     return_prev_task();
 }
 
@@ -181,6 +190,10 @@ Protected Only (1MB+)
 400000 - 700000 Usermode Code (3mB)
 700000 - 800000 Usermode Stack (1mB)
 */
+
+// FIXME Truly awful
+extern uint8_t SystemPartition;
+
 void DrawScreen(uint16_t *vga) {
     uint16_t *vga_text = vga;
     // clear screen
@@ -214,6 +227,7 @@ void DrawScreen(uint16_t *vga) {
     vga_text[80+42] = 0x1f00 | 'S';
     vga_text[80+43] = 0x1f00 | ' ';
     vga_text[80+44] = 0x1f00 | '-';
+    printByte(SystemPartition, &vga_text[80+50]);
 }
 
 void SetPalette() {
@@ -418,7 +432,9 @@ void SystemRun() {
     {
         VOLINFO vi;
         // TODO Check partitions beyond 0
-        while (OpenVol(&vi)) {
+        while (1) {
+            create_child(GetFreeStack(), (uintptr_t)OpenVol, 1, &vi);
+            if (!check_error_code()) break;
             vga_text = &((word*)0xb8000)[80*4 + 2];
             vga_text += printStr("Error loading file select. Ensure the disk has a valid MBR and FAT partition.", vga_text);
             vga_text = &((word*)0xb8000)[80*5 + 2];
@@ -457,8 +473,8 @@ void start() {
     vga_text = &vga_text[80];
 
     // DL *should* be preserved
-    uint8_t dl;
-    asm volatile("nop":"=d"(dl));
+    uint16_t boot_dx;
+    asm volatile("nop":"=d"(boot_dx));
 
     if (!check_cmov()) {
         char cmov_err[] = "NO CMOV";
@@ -467,7 +483,7 @@ void start() {
         for (;;) asm volatile("hlt");
     }
 
-    vga_text += printByte(dl, vga_text);
+    vga_text += printWord(boot_dx, vga_text);
     vga_text++;
 
     uint32_t o;
@@ -508,6 +524,9 @@ void start() {
     init_paging();
     backup_ivtbios();
     InitDisk();
+
+    // DL contained disk number, DH contained active partition
+    SystemPartition = boot_dx >> 8;
 
     create_child(GetFreeStack(), (uintptr_t)SystemRun, 0);
     // If this returns, something is *very* wrong, reboot the system

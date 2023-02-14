@@ -7,16 +7,29 @@ LFLAGS = -Wl,--gc-sections -Wl,--print-gc-sections -m32 -nostartfiles -nostdlib
 ifeq ($(OUTFILE),)
 OUTFILE = virtdisk.bin
 endif
+ifeq ($(PARTSTART),)
+PARTSTART = 2048
+endif
+
+PARTVBR=$(shell echo "$(PARTSTART) * (2^9)" | bc)
+PARTVBRBOOT=$(shell echo "$(PARTVBR) + 90" | bc)
+KERNSEC=$(shell echo "$(PARTSTART) + 4" | bc)
 
 .PHONY: $(OUTFILE)
 
 all: $(OUTFILE)
 
-$(OUTFILE): boot.bin kernel.bin
-	# Copy to boot sector, don't overwrite MBR
+$(OUTFILE): boot.bin boot_partition.bin kernel.bin
+	# Copy system bootloader to boot sector, don't overwrite MBR
 	dd bs=400 count=1 conv=notrunc if=boot.bin of=$@
-	# Write kernel beyond boot sector, maximum 128K (256 sectors)
-	dd bs=512 count=256 seek=1 conv=notrunc if=kernel.bin of=$@
+	# Ensure partition VBR contains EB 5A
+	echo -n -e '\xeb\x5a' | dd bs=1 seek=$(PARTVBR) count=2 conv=notrunc of=$@
+	# Copy kernel bootloader to partition VBR
+	dd bs=1 count=420 seek=$(PARTVBRBOOT) conv=notrunc if=boot_partition.bin of=$@
+	# TODO Check that disk has enough reserved sectors,
+	# currently this will overwrite the disk if too few
+	# Write kernel beyond boot sector, maximum 64K (128 sectors)
+	dd bs=512 count=128 seek=$(KERNSEC) conv=notrunc if=kernel.bin of=$@
 
 kernel.bin: out.o link.ld usermode.o
 	clang $(LFLAGS) -Wl,-M -Tlink.ld -ffreestanding -o $@ out.o usermode.o
@@ -37,8 +50,7 @@ out.o: $(objects)
 	clang $(CFLAGS) -ffunction-sections -fdata-sections -Os -o $@ $<
 
 virtdisk:
-	dd bs=1M count=32 if=/dev/zero of=virtdisk.bin
-	echo -n -e '\x55\xaa' | dd bs=1 seek=510 conv=notrunc of=virtdisk.bin
+	cp virtdisk.bin.ex virtdisk.bin
 
 clean:
 	rm -f $(objects) out.o kernel.bin boot.bin usermode.bin

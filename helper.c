@@ -48,11 +48,13 @@ void SetCursorDisabled() {
     V8086Int(0x10, &regs);
 }
 
+// This should DEFINITELY be an argument
+uint8_t SystemPartition = 0;
 uint32_t OpenVol(VOLINFO *vi) {
     uint8_t *diskReadBuf = (uint8_t *)0x20000;
     uint8_t pactive, ptype;
     uint32_t pstart, psize;
-    pstart = DFS_GetPtnStart(0, diskReadBuf, 0, &pactive, &ptype, &psize);
+    pstart = DFS_GetPtnStart(0, diskReadBuf, SystemPartition, &pactive, &ptype, &psize);
     if (pstart == -1) return -1;
     return DFS_GetVolInfo(0, diskReadBuf, pstart, vi);
 }

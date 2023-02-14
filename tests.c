@@ -122,6 +122,10 @@ void TestCHS() {
         }
     }
 }
+
+// FIXME Just horrible
+extern uint8_t SystemPartition;
+
 void TestFAT() {
     uint16_t *vga_text = (uint16_t *)0xb8000;
     uint8_t *diskReadBuf = (uint8_t *)0x22400;
@@ -131,7 +135,7 @@ void TestFAT() {
 
     uint8_t pactive, ptype;
     uint32_t pstart, psize;
-    pstart = DFS_GetPtnStart(0, diskReadBuf, 0, &pactive, &ptype, &psize);
+    pstart = DFS_GetPtnStart(0, diskReadBuf, SystemPartition, &pactive, &ptype, &psize);
     vga_text = (uint16_t *)0xb8000;
     vga_text += printStr("PartStart: ", vga_text);
     vga_text += printDword(pstart, vga_text);
