@@ -12,14 +12,14 @@ uint8_t editedBlocks[TOTALBLOCKS] __attribute__((section(".textbss")));;
 uint8_t fileBuffer[MAXFILESIZE]
     __attribute__((aligned(0x1000)))
     __attribute__((section(".textlatebss")));
-void TextViewTest(uint8_t *path, VOLINFO *vi) {
+void TextViewTest(char *path, dirent *de) {
     uint16_t *vga_text = (uint16_t *)0xb8000;
-    uint32_t fileLen;
+    uint32_t fileLen = de->size;
     {
         uint32_t err;
         uint8_t *scratch = (uint8_t *)0x20000;
-        FILEINFO fi;
-        err = DFS_OpenFile(vi, path, DFS_READ, scratch, &fi);
+        FILE file;
+        err = file_open(&file, path, OPENREAD);
         if (err) {
             vga_text += printStr("Open Error: ", vga_text);
             printDword(err, vga_text);
@@ -27,19 +27,18 @@ void TextViewTest(uint8_t *path, VOLINFO *vi) {
             return;
         }
         // file too large
-        if (fi.filelen > MAXFILESIZE) {
+        if (fileLen > MAXFILESIZE) {
             vga_text += printStr("File too large.", vga_text);
             kbd_wait();
             return;
         }
-        DFS_Seek(&fi, 0, scratch);
-        if (fi.pointer != 0) {
+        if (file_seek(&file, 0)) {
             vga_text += printStr("Seek Error", vga_text);
             kbd_wait();
             return;
         }
-        err = DFS_ReadFile(&fi, scratch, fileBuffer, &fileLen, fi.filelen);
-        if (err && err != DFS_EOF) {
+        uint32_t bytesRead = file_read(&file, fileBuffer, fileLen);
+        if (bytesRead < fileLen) {
             vga_text += printStr("Read Error: ", vga_text);
             printDword(err, vga_text);
             kbd_wait();

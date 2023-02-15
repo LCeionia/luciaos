@@ -1,3 +1,4 @@
+#include "file.h"
 #include "progs.h"
 
 #define BLOCKSIZE 0x10000 // 64K
@@ -11,37 +12,38 @@ uint32_t blockLenMap[TOTALBLOCKS] __attribute__((section(".hexbss")));;
 // so that it can be expanded without telling C how much
 // it actually needs
 uint8_t writeStoreBase[BLOCKSIZE] __attribute__((section(".hexlatebss")));
-void HexEditor(uint8_t *path, VOLINFO *vi) {
+void HexEditor(char *path, dirent *de) {
     uint32_t err;
     uint16_t *vga_text = (uint16_t *)0xb8000;
     uint32_t screenSize = 80*25;
     uint8_t *scratch = (uint8_t *)0x20000;
     uint8_t (*writeStore)[BLOCKSIZE] = &writeStoreBase;
+    uint32_t filelen = de->size;
     for (int i = 0; i < TOTALBLOCKS; i++)
         writtenMap[i] = 0;
     uint8_t *screenBuff = *writeStore;
     // First two blocks are screen buffer
     uint32_t nextFreeBlock = 2;
 
-    FILEINFO fi;
+    FILE file;
     vga_text = (uint16_t *)0xb8000;
     for (int i = 0; i < 80*50; i++)
         vga_text[i] = 0x0f00;
-    err = DFS_OpenFile(vi, path, DFS_READ | DFS_WRITE, scratch, &fi);
+    err = file_open(&file, path, OPENREAD|OPENWRITE);
     if (err) {
         vga_text += printStr("Open Error: ", vga_text);
         printDword(err, vga_text);
         kbd_wait();
         return;
     }
-    if (fi.filelen == 0) {
+    if (filelen == 0) {
         vga_text += printStr("File ", vga_text);
         vga_text += printStr((char*)path, vga_text);
         vga_text += printStr(" has no data.", vga_text);
         kbd_wait();
         return;
     }
-    if (fi.filelen > MAXFILESIZE) {
+    if (filelen > MAXFILESIZE) {
         vga_text += printStr("File ", vga_text);
         vga_text += printStr((char*)path, vga_text);
         vga_text += printStr(" is too large (> 2GB).", vga_text);
@@ -70,13 +72,13 @@ void HexEditor(uint8_t *path, VOLINFO *vi) {
         // things will be caught by sanity checks.
         // Scroll Back
         if (cursorScreenOff < 0) {
-            if (drawOffset - 16 < fi.filelen)
+            if (drawOffset - 16 < filelen)
                 drawOffset -= 16;
             cursorScreenOff += 16;
         }
         // Scroll Forward
         if (cursorScreenOff >= byteCount) {
-            if (drawOffset + 16 < fi.filelen)
+            if (drawOffset + 16 < filelen)
                 drawOffset += 16;
             cursorScreenOff -= 16;
         }
@@ -84,8 +86,8 @@ void HexEditor(uint8_t *path, VOLINFO *vi) {
         // Sanity checks
         if (cursorScreenOff >= byteCount)
             cursorScreenOff = byteCount - 1;
-        if (cursorScreenOff + drawOffset >= fi.filelen)
-            cursorScreenOff = fi.filelen - drawOffset - 1;
+        if (cursorScreenOff + drawOffset >= filelen)
+            cursorScreenOff = filelen - drawOffset - 1;
         if (cursorScreenOff < 0) cursorScreenOff = 0;
 
         if (cursorNibble != lastCursorNibble)
@@ -185,16 +187,14 @@ void HexEditor(uint8_t *path, VOLINFO *vi) {
             } else {
                 uint32_t blockOffset = drawOffset & BLOCKMASK;
                 vga_text = &((uint16_t*)0xb8000)[80];
-                DFS_Seek(&fi, blockOffset, scratch);
-                if (fi.pointer != blockOffset) {
+                if (file_seek(&file, blockOffset)) {
                     vga_text += printStr("Seek Error", vga_text);
                     kbd_wait();
                     return;
                 }
-                err = DFS_ReadFile(&fi, scratch, screenBuff, &currBuffLength, BLOCKSIZE);
-                if (err && err != DFS_EOF) {
-                    vga_text += printStr("Read Error: ", vga_text);
-                    printDword(err, vga_text);
+                currBuffLength = file_read(&file, screenBuff, BLOCKSIZE);
+                if (!currBuffLength && blockOffset != filelen) {
+                    vga_text += printStr("Read Error", vga_text);
                     kbd_wait();
                     return;
                 }
@@ -222,16 +222,14 @@ void HexEditor(uint8_t *path, VOLINFO *vi) {
                 } else {
                     uint32_t blockOffset = (drawOffset & BLOCKMASK) + BLOCKSIZE;
                     vga_text = &((uint16_t*)0xb8000)[80];
-                    DFS_Seek(&fi, blockOffset, scratch);
-                    if (fi.pointer != blockOffset) {
+                    if (file_seek(&file, blockOffset)) {
                         vga_text += printStr("Seek Error", vga_text);
                         kbd_wait();
                         return;
                     }
-                    err = DFS_ReadFile(&fi, scratch, &screenBuff[BLOCKSIZE], &nextBuffLength, BLOCKSIZE);
-                    if (err && err != DFS_EOF) {
-                        vga_text += printStr("Read Error: ", vga_text);
-                        printDword(err, vga_text);
+                    nextBuffLength = file_read(&file, &screenBuff[BLOCKSIZE], BLOCKSIZE);
+                    if (!nextBuffLength && blockOffset != filelen) {
+                        vga_text += printStr("Read Error", vga_text);
                         kbd_wait();
                         return;
                     }
@@ -301,12 +299,12 @@ void HexEditor(uint8_t *path, VOLINFO *vi) {
         switch (key & 0xff) {
             case KEY_DOWN:
                 // Stay in file
-                if ((cursorScreenOff + 16 + drawOffset) < fi.filelen)
+                if ((cursorScreenOff + 16 + drawOffset) < filelen)
                     cursorScreenOff += 16;
                 break;
             case KEY_UP:
                 // Stay in file
-                if ((uint32_t)(cursorScreenOff - 16 + drawOffset) < fi.filelen)
+                if ((uint32_t)(cursorScreenOff - 16 + drawOffset) < filelen)
                     cursorScreenOff -= 16;
                 break;
             case KEY_LEFT:
@@ -316,7 +314,7 @@ void HexEditor(uint8_t *path, VOLINFO *vi) {
                     cursorNibble = 0;
                     cursorScreenOff |= 0xF;
                 // Stay in file
-                } else if ((cursorScreenOff - 1 + drawOffset) < fi.filelen) {
+                } else if ((cursorScreenOff - 1 + drawOffset) < filelen) {
                     cursorScreenOff--;
                     if (cursorNibble == 1) cursorNibble = 0;
                 }
@@ -328,19 +326,19 @@ void HexEditor(uint8_t *path, VOLINFO *vi) {
                     cursorNibble = 2;
                     cursorScreenOff &= ~0xF;
                 // Stay in file
-                } else if ((cursorScreenOff + 1 + drawOffset) < fi.filelen) {
+                } else if ((cursorScreenOff + 1 + drawOffset) < filelen) {
                     cursorScreenOff++;
                     if (cursorNibble == 0) cursorNibble = 1;
                 }
                 break;
             case KEY_PGDOWN:
-                if (drawOffset + byteCount < fi.filelen)
+                if (drawOffset + byteCount < filelen)
                     drawOffset += byteCount;
-                else if ((fi.filelen / byteCount) * byteCount > drawOffset)
-                    drawOffset = (fi.filelen / byteCount) * byteCount;
+                else if ((filelen / byteCount) * byteCount > drawOffset)
+                    drawOffset = (filelen / byteCount) * byteCount;
                 break;
             case KEY_PGUP:
-                if (drawOffset - byteCount < fi.filelen)
+                if (drawOffset - byteCount < filelen)
                     drawOffset -= byteCount;
                 else drawOffset = 0;
                 break;
@@ -359,8 +357,8 @@ void HexEditor(uint8_t *path, VOLINFO *vi) {
                 drawOffset = 0;
                 break;
             case KEY_F4: // end of file
-                if ((fi.filelen / byteCount) * byteCount > drawOffset)
-                    drawOffset = (fi.filelen / byteCount) * byteCount;
+                if ((filelen / byteCount) * byteCount > drawOffset)
+                    drawOffset = (filelen / byteCount) * byteCount;
                 break;
             case KEY_F6: // TODO write file
                 break;
@@ -425,23 +423,21 @@ void HexEditor(uint8_t *path, VOLINFO *vi) {
     for(;(key & 0xff) != KEY_N && (key & 0xff) != KEY_Y;key = get_scancode());
     if ((key & 0xff) != KEY_Y) return;
     // Write changes
-    for (int i = 0; i < TOTALBLOCKS && (i << BLOCKSHIFT) < fi.filelen; i++) {
+    for (int i = 0; i < TOTALBLOCKS && (i << BLOCKSHIFT) < filelen; i++) {
         // No change in current block
         uint16_t blockIdx = writtenMap[i];
         uint32_t blockLen = blockLenMap[i];
         if (!blockIdx) continue;
         // Write block to file
-        uint32_t successcount;
         uint32_t blockOff = i << BLOCKSHIFT;
-        DFS_Seek(&fi, blockOff, scratch);
-        if (fi.pointer != blockOff) {
+        if (file_seek(&file, blockOff)) {
             vga_text = (uint16_t*)0xb8000;
             vga_text += printStr("Seek Error ", vga_text);
             kbd_wait();
             return;
         }
-        uint32_t err = DFS_WriteFile(&fi, scratch, writeStore[blockIdx], &successcount, blockLen);
-        if (successcount < blockLen || err) {
+        uint32_t successcount = file_write(&file, writeStore[blockIdx], blockLen);
+        if (successcount < blockLen) {
             vga_text = (uint16_t*)0xb8000;
             vga_text += printStr("Write Error ", vga_text);
             kbd_wait();

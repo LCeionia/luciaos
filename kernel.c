@@ -1,6 +1,6 @@
 #include <stdint.h>
 
-#include "dosfs/dosfs.h"
+#include "file.h"
 #include "print.h"
 #include "interrupt.h"
 #include "kbd.h"
@@ -182,7 +182,9 @@ Protected Only (1MB+)
 100000 - 200000 Kernel Code (1mB)
 200000 - 200080 TSS (128B)
 200080 - 202080 TSS IOMAP (8kB)
-202080 - 300000 Free (~1/2mB)
+202080 - 208000 Free (~24kB)
+208000 - 240000 Kernel File Stack (224kB)
+240000 - 280000 Active Filesystems (128kB)
 280000 - 300000 Disk Cache (512kB)
 300000 - 310000 Task Stack (64kB)
 310000 - 320000 Interrupt Stack (64kB)
@@ -190,9 +192,6 @@ Protected Only (1MB+)
 400000 - 700000 Usermode Code (3mB)
 700000 - 800000 Usermode Stack (1mB)
 */
-
-// FIXME Truly awful
-extern uint8_t SystemPartition;
 
 void DrawScreen(uint16_t *vga) {
     uint16_t *vga_text = vga;
@@ -227,7 +226,6 @@ void DrawScreen(uint16_t *vga) {
     vga_text[80+42] = 0x1f00 | 'S';
     vga_text[80+43] = 0x1f00 | ' ';
     vga_text[80+44] = 0x1f00 | '-';
-    printByte(SystemPartition, &vga_text[80+50]);
 }
 
 void SetPalette() {
@@ -253,28 +251,22 @@ int32_t fileCount, fileOffset;
 // after every task called. This might be fine,
 // since the task might have modified the directory.
 extern char _USERMODE;
-DIRENT *const DirEntries = (DIRENT*)&_USERMODE;
+dirent *const DirEntries = (dirent*)&_USERMODE;
 #define MAXDISPFILES 16
 void PrintFileList(uint16_t *vga) {
     uint16_t *vga_text = &((uint16_t *)vga)[80*6+3];
     for (int i = 0; (i + fileOffset) < fileCount && i < MAXDISPFILES; i++) {
-        DIRENT *de = &DirEntries[i + fileOffset];
-        for (int i = 0; i < 11 && de->name[i]; i++) {
-            if (i == 8) { *(uint8_t*)vga_text = ' '; vga_text++; } // space for 8.3
-            *(uint8_t *)vga_text = de->name[i];
-            vga_text++;
-        }
+        dirent *de = &DirEntries[i + fileOffset];
+        de->name[de->namelen < 20 ? de->namelen : 20] = 0;
+        vga_text += printStr(de->name, vga_text);
         vga_text += printStr("  ", vga_text);
-        vga_text += printDec((uint32_t)de->filesize_0 +
-                ((uint32_t)de->filesize_1 << 8) +
-                ((uint32_t)de->filesize_2 << 16) +
-                ((uint32_t)de->filesize_3 << 24), vga_text);
+        vga_text += printDec(de->size, vga_text);
         *(uint8_t*)vga_text++ = 'B';
         vga_text = nextLine(vga_text, vga) + 3;
     }
 }
-char IsDir(DIRENT *de) {
-    return de->attr & ATTR_DIRECTORY;
+char IsDir(dirent *de) {
+    return de->type == FT_DIR;
 }
 void ScancodeTest() {
     uint16_t *vga = (uint16_t*)0xb8000;
@@ -289,7 +281,7 @@ void ScancodeTest() {
 extern void create_child(uint32_t esp, uint32_t eip, uint32_t argc, ...);
 uint16_t FileSelectScreen[80*25];
 void FileSelect() {
-    uint8_t current_path[80];
+    char current_path[80];
     uintptr_t current_path_end;
     for (int i = 0; i < sizeof(current_path); i++)
         current_path[i] = 0;
@@ -314,15 +306,14 @@ void FileSelect() {
             vga += 80;
             printStr("F4 to run tests", vga);
         }
-        printStr((char*)current_path, &vga_text[80*4 + 2]);
+        printStr(current_path, &vga_text[80*4 + 2]);
         for (int i = 2; i < 15; i++)
             *(uint8_t*)&vga_text[80*5 + i] = '-';
-        VOLINFO vi; DIRINFO di;
+        DIR dir;
         if (reload) {
-            OpenVol(&vi);
             current_path[current_path_end] = 0;
-            OpenDir(current_path, &vi, &di);
-            GetFileList(DirEntries, &fileCount, INT32_MAX, &vi, &di);
+            dir_open(&dir, current_path);
+            GetFileList(&dir, DirEntries, &fileCount, INT32_MAX);
             reload = 0;
         }
         if (fileHovered >= fileCount) {
@@ -365,23 +356,32 @@ void FileSelect() {
                 break;
             case KEY_P:
                 if (IsDir(&DirEntries[fileHovered])) break;
-                File83ToPath((char*)DirEntries[fileHovered].name, (char*)&current_path[current_path_end]);
-                create_child(GetFreeStack(), (uintptr_t)ProgramLoadTest, 2, current_path, &vi);
+                for (int i = 0; i < DirEntries[fileHovered].namelen; i++)
+                    current_path[current_path_end + i] = DirEntries[fileHovered].name[i];
+                current_path[current_path_end + DirEntries[fileHovered].namelen] = 0;
+                create_child(GetFreeStack(), (uintptr_t)ProgramLoadTest, 2, current_path, &DirEntries[fileHovered]);
+                current_path[current_path_end] = 0;
                 RestoreVGA();
                 reload = 1;
                 break;
             case KEY_X:
                 if (IsDir(&DirEntries[fileHovered])) break;
-                File83ToPath((char*)DirEntries[fileHovered].name, (char*)&current_path[current_path_end]);
-                create_child(GetFreeStack(), (uintptr_t)HexEditor, 2, current_path, &vi);
+                for (int i = 0; i < DirEntries[fileHovered].namelen; i++)
+                    current_path[current_path_end + i] = DirEntries[fileHovered].name[i];
+                current_path[current_path_end + DirEntries[fileHovered].namelen] = 0;
+                create_child(GetFreeStack(), (uintptr_t)HexEditor, 2, current_path, &DirEntries[fileHovered]);
+                current_path[current_path_end] = 0;
                 RestoreVGA();
                 reload = 1;
                 break;
             case KEY_T:
                 if (IsDir(&DirEntries[fileHovered])) break;
-                File83ToPath((char*)DirEntries[fileHovered].name, (char*)&current_path[current_path_end]);
                 //TextViewTest(path, &vi);
-                create_child(GetFreeStack(), (uintptr_t)TextViewTest, 2, current_path, &vi);
+                for (int i = 0; i < DirEntries[fileHovered].namelen; i++)
+                    current_path[current_path_end + i] = DirEntries[fileHovered].name[i];
+                current_path[current_path_end + DirEntries[fileHovered].namelen] = 0;
+                create_child(GetFreeStack(), (uintptr_t)TextViewTest, 2, current_path, &DirEntries[fileHovered]);
+                current_path[current_path_end] = 0;
                 RestoreVGA();
                 reload = 1;
                 break;
@@ -389,7 +389,12 @@ void FileSelect() {
             case 0x9C: // enter release
                 if (IsDir(&DirEntries[fileHovered])) {
                     uint8_t tmp_path[80];
-                    File83ToPath((char*)DirEntries[fileHovered].name, (char*)tmp_path);
+                    {
+                        int i;
+                        for (i = 0; i < DirEntries[fileHovered].namelen && i < sizeof(tmp_path)-1; i++)
+                            tmp_path[i] = DirEntries[fileHovered].name[i];
+                        tmp_path[i] = 0;
+                    }
                     if ((*(uint32_t*)tmp_path & 0xffff) == ('.' | 0x0000)) {
                         // Current dir, do nothing
                         break;
@@ -423,17 +428,17 @@ void FileSelect() {
     }
 }
 
-void SystemRun() {
+int MakeSystemVolume(uint8_t sysPartition);
+void SystemRun(uint8_t sysPartition) {
     uint16_t *vga_text = (word *)0xb8000;
     RestoreVGA();
     DrawScreen((uint16_t*)0xb8000);
 
     // Check for FAT partition
     {
-        VOLINFO vi;
         // TODO Check partitions beyond 0
         while (1) {
-            create_child(GetFreeStack(), (uintptr_t)OpenVol, 1, &vi);
+            create_child(GetFreeStack(), (uintptr_t)MakeSystemVolume, 1, sysPartition);
             if (!check_error_code()) break;
             vga_text = &((word*)0xb8000)[80*4 + 2];
             vga_text += printStr("Error loading file select. Ensure the disk has a valid MBR and FAT partition.", vga_text);
@@ -526,9 +531,9 @@ void start() {
     InitDisk();
 
     // DL contained disk number, DH contained active partition
-    SystemPartition = boot_dx >> 8;
+    uint8_t SystemPartition = boot_dx >> 8;
 
-    create_child(GetFreeStack(), (uintptr_t)SystemRun, 0);
+    create_child(GetFreeStack(), (uintptr_t)SystemRun, 1, SystemPartition);
     // If this returns, something is *very* wrong, reboot the system
     // TODO Maybe try to recover?
 

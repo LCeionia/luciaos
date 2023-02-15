@@ -1,12 +1,12 @@
 #pragma once
 #include <stdint.h>
 
-#include "dosfs/dosfs.h"
 #include "print.h"
 #include "kbd.h"
 #include "v86defs.h"
 #include "helper.h"
+#include "file.h"
 
-void HexEditor(uint8_t *path, VOLINFO *vi);
-void TextViewTest(uint8_t *path, VOLINFO *vi);
-void ProgramLoadTest(uint8_t *path, VOLINFO *vi);
+void HexEditor(char *path, dirent *de);
+void TextViewTest(char *path, dirent *de);
+void ProgramLoadTest(char *path, dirent *de);

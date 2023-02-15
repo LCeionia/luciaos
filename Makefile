@@ -1,5 +1,6 @@
-objects = entry.o kernel.o task.o handler.o interrupt.o v86.o print.o tss.o dosfs/dosfs.o gdt.o\
-		  paging.o fault.o tests.o kbd.o helper.o progs.o disk.o hexedit.o textedit.o
+objects = entry.o kernel.o task.o handler.o interrupt.o v86.o print.o tss.o gdt.o\
+		  paging.o fault.o tests.o kbd.o helper.o disk.o file.o fs.o dosfs/dosfs.o fs_dos.o\
+		  progs.o hexedit.o textedit.o
 CFLAGS = -target "i686-elf" -m32 -mgeneral-regs-only -ffreestanding\
 		 -march=i686 -fno-stack-protector -Wno-int-conversion -nostdlib -c
 LFLAGS = -Wl,--gc-sections -Wl,--print-gc-sections -m32 -nostartfiles -nostdlib

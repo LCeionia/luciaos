@@ -3,7 +3,7 @@
 
 #include "interrupt.h"
 #include "v86defs.h"
-#include "dosfs/dosfs.h"
+#include "file.h"
 
 void V8086Int(uint8_t interrupt, union V86Regs_t *regs);
 
@@ -14,7 +14,4 @@ void SetCursorDisabled();
 uint16_t *nextLine(uint16_t *p, uint16_t *b);
 void trimPath(char *path, char *buff, uint32_t maxLen);
 
-uint32_t OpenVol(VOLINFO *vi);
-uint32_t OpenDir(uint8_t *path, VOLINFO *vi, DIRINFO *di);
-void File83ToPath(char *src, char *path);
-void GetFileList(DIRENT *entries, int32_t *entCount, int32_t maxEntries, VOLINFO *vi, DIRINFO *di);
+void GetFileList(DIR *dir, dirent *entries, int32_t *entCount, int32_t maxEntries);

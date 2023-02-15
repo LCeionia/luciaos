@@ -123,79 +123,76 @@ void TestCHS() {
     }
 }
 
-// FIXME Just horrible
-extern uint8_t SystemPartition;
-
-void TestFAT() {
-    uint16_t *vga_text = (uint16_t *)0xb8000;
-    uint8_t *diskReadBuf = (uint8_t *)0x22400;
-    for (int i = 0; i < 80*25; i++)
-        vga_text[i] = 0x0f00;
-    VOLINFO vi;
-
-    uint8_t pactive, ptype;
-    uint32_t pstart, psize;
-    pstart = DFS_GetPtnStart(0, diskReadBuf, SystemPartition, &pactive, &ptype, &psize);
-    vga_text = (uint16_t *)0xb8000;
-    vga_text += printStr("PartStart: ", vga_text);
-    vga_text += printDword(pstart, vga_text);
-    vga_text += 2;
-    vga_text += printStr("PartSize: ", vga_text);
-    vga_text += printDword(psize, vga_text);
-    vga_text += 2;
-    vga_text += printStr("PartActive: ", vga_text);
-    vga_text += printByte(pactive, vga_text);
-    vga_text += 2;
-    vga_text += printStr("PartType: ", vga_text);
-    vga_text += printByte(ptype, vga_text);
-    vga_text = (uint16_t *)((((((uintptr_t)vga_text)-0xb8000) - ((((uintptr_t)vga_text)-0xb8000) % 160)) + 160)+0xb8000);
-    //asm ("xchgw %bx, %bx");
-
-    DFS_GetVolInfo(0, diskReadBuf, pstart, &vi);
-    vga_text += printStr("Label: ", vga_text);
-    vga_text += printStr((char*)vi.label, vga_text);
-    vga_text += 2;
-    vga_text += printStr("Sec/Clus: ", vga_text);
-    vga_text += printByte(vi.secperclus, vga_text);
-    vga_text += 2;
-    vga_text += printStr("ResrvSec: ", vga_text);
-    vga_text += printWord(vi.reservedsecs, vga_text);
-    vga_text += 2;
-    vga_text += printStr("NumSec: ", vga_text);
-    vga_text += printDword(vi.numsecs, vga_text);
-    vga_text += 2;
-    vga_text += printStr("Sec/FAT: ", vga_text);
-    vga_text += printDword(vi.secperfat, vga_text);
-    vga_text += 2;
-    vga_text += printStr("FAT1@: ", vga_text);
-    vga_text += printDword(vi.fat1, vga_text);
-    vga_text += 2;
-    vga_text += printStr("ROOT@: ", vga_text);
-    vga_text += printDword(vi.rootdir, vga_text);
-    vga_text = (uint16_t *)((((((uintptr_t)vga_text)-0xb8000) - ((((uintptr_t)vga_text)-0xb8000) % 160)) + 160)+0xb8000);
-    //asm ("xchgw %bx, %bx");
-
-    vga_text += printStr("Files in root:", vga_text);
-    DIRINFO di;
-    di.scratch = diskReadBuf;
-    DFS_OpenDir(&vi, (uint8_t*)"", &di);
-    vga_text = (uint16_t *)((((((uintptr_t)vga_text)-0xb8000) - ((((uintptr_t)vga_text)-0xb8000) % 160)) + 160)+0xb8000);
-    DIRENT de;
-    while (!DFS_GetNext(&vi, &di, &de)) {
-        if (de.name[0]) {
-            for (int i = 0; i < 11 && de.name[i]; i++) {
-                if (i == 8) { *(uint8_t*)vga_text = ' '; vga_text++; } // space for 8.3
-                *(uint8_t *)vga_text = de.name[i];
-                vga_text++;
-            }
-            vga_text += printStr("  ", vga_text);
-            vga_text += printDec((uint32_t)de.filesize_0 + ((uint32_t)de.filesize_1 << 8) + ((uint32_t)de.filesize_2 << 16) + ((uint32_t)de.filesize_3 << 24), vga_text);
-            *(uint8_t*)vga_text++ = 'B';
-            vga_text = (uint16_t *)((((((uintptr_t)vga_text)-0xb8000) - ((((uintptr_t)vga_text)-0xb8000) % 160)) + 160)+0xb8000);
-        }
-        //asm ("xchgw %bx, %bx");
-    }
-}
+//void TestFAT() {
+//    uint16_t *vga_text = (uint16_t *)0xb8000;
+//    uint8_t *diskReadBuf = (uint8_t *)0x22400;
+//    for (int i = 0; i < 80*25; i++)
+//        vga_text[i] = 0x0f00;
+//    VOLINFO vi;
+//
+//    uint8_t pactive, ptype;
+//    uint32_t pstart, psize;
+//    pstart = DFS_GetPtnStart(0, diskReadBuf, SystemPartition, &pactive, &ptype, &psize);
+//    vga_text = (uint16_t *)0xb8000;
+//    vga_text += printStr("PartStart: ", vga_text);
+//    vga_text += printDword(pstart, vga_text);
+//    vga_text += 2;
+//    vga_text += printStr("PartSize: ", vga_text);
+//    vga_text += printDword(psize, vga_text);
+//    vga_text += 2;
+//    vga_text += printStr("PartActive: ", vga_text);
+//    vga_text += printByte(pactive, vga_text);
+//    vga_text += 2;
+//    vga_text += printStr("PartType: ", vga_text);
+//    vga_text += printByte(ptype, vga_text);
+//    vga_text = (uint16_t *)((((((uintptr_t)vga_text)-0xb8000) - ((((uintptr_t)vga_text)-0xb8000) % 160)) + 160)+0xb8000);
+//    //asm ("xchgw %bx, %bx");
+//
+//    DFS_GetVolInfo(0, diskReadBuf, pstart, &vi);
+//    vga_text += printStr("Label: ", vga_text);
+//    vga_text += printStr((char*)vi.label, vga_text);
+//    vga_text += 2;
+//    vga_text += printStr("Sec/Clus: ", vga_text);
+//    vga_text += printByte(vi.secperclus, vga_text);
+//    vga_text += 2;
+//    vga_text += printStr("ResrvSec: ", vga_text);
+//    vga_text += printWord(vi.reservedsecs, vga_text);
+//    vga_text += 2;
+//    vga_text += printStr("NumSec: ", vga_text);
+//    vga_text += printDword(vi.numsecs, vga_text);
+//    vga_text += 2;
+//    vga_text += printStr("Sec/FAT: ", vga_text);
+//    vga_text += printDword(vi.secperfat, vga_text);
+//    vga_text += 2;
+//    vga_text += printStr("FAT1@: ", vga_text);
+//    vga_text += printDword(vi.fat1, vga_text);
+//    vga_text += 2;
+//    vga_text += printStr("ROOT@: ", vga_text);
+//    vga_text += printDword(vi.rootdir, vga_text);
+//    vga_text = (uint16_t *)((((((uintptr_t)vga_text)-0xb8000) - ((((uintptr_t)vga_text)-0xb8000) % 160)) + 160)+0xb8000);
+//    //asm ("xchgw %bx, %bx");
+//
+//    vga_text += printStr("Files in root:", vga_text);
+//    DIRINFO di;
+//    di.scratch = diskReadBuf;
+//    DFS_OpenDir(&vi, (uint8_t*)"", &di);
+//    vga_text = (uint16_t *)((((((uintptr_t)vga_text)-0xb8000) - ((((uintptr_t)vga_text)-0xb8000) % 160)) + 160)+0xb8000);
+//    DIRENT de;
+//    while (!DFS_GetNext(&vi, &di, &de)) {
+//        if (de.name[0]) {
+//            for (int i = 0; i < 11 && de.name[i]; i++) {
+//                if (i == 8) { *(uint8_t*)vga_text = ' '; vga_text++; } // space for 8.3
+//                *(uint8_t *)vga_text = de.name[i];
+//                vga_text++;
+//            }
+//            vga_text += printStr("  ", vga_text);
+//            vga_text += printDec((uint32_t)de.filesize_0 + ((uint32_t)de.filesize_1 << 8) + ((uint32_t)de.filesize_2 << 16) + ((uint32_t)de.filesize_3 << 24), vga_text);
+//            *(uint8_t*)vga_text++ = 'B';
+//            vga_text = (uint16_t *)((((((uintptr_t)vga_text)-0xb8000) - ((((uintptr_t)vga_text)-0xb8000) % 160)) + 160)+0xb8000);
+//        }
+//        //asm ("xchgw %bx, %bx");
+//    }
+//}
 
 void RunTests() {
     char doTests = 1;
@@ -258,7 +255,7 @@ void RunTests() {
                 TestCHS();
                 kbd_wait();
                 TestDiskRead();
-                TestFAT();
+                //TestFAT();
                 break;
             case 'r':
             case 'R':

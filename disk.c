@@ -1,11 +1,11 @@
 #include "disk.h"
 #include "v86defs.h"
 #include "print.h"
-#include "dosfs/dosfs.h"
 #include "stdint.h"
 
 extern void *memcpy(void *restrict dest, const void *restrict src, uintptr_t n);
 
+#define SECTOR_SIZE 512
 #define DISKCACHEBLOCKSIZE 0x1000 // 512 * 4
 #define DISKCACHESECTORMASK 7
 #define DISKCACHESECTORSIZE 8
@@ -104,7 +104,7 @@ void InitDisk() {
 	Disk_SetupCHS();
 }
 
-uint32_t DFS_ReadSector(uint8_t unit, uint8_t *buffer, uint32_t sector, uint32_t count) {
+uint32_t Disk_ReadSector(uint8_t unit, uint8_t *buffer, uint32_t sector, uint32_t count) {
 	uint8_t *cache = FindInCache(sector);
 	if (cache) {
 		memcpy(buffer, cache, count * SECTOR_SIZE);
@@ -158,7 +158,7 @@ uint32_t DFS_ReadSector(uint8_t unit, uint8_t *buffer, uint32_t sector, uint32_t
 		memcpy(buffer, v86buf, count * SECTOR_SIZE);
 	return 0;
 }
-uint32_t DFS_WriteSector(uint8_t unit, uint8_t *buffer, uint32_t sector, uint32_t count) {
+uint32_t Disk_WriteSector(uint8_t unit, uint8_t *buffer, uint32_t sector, uint32_t count) {
 	// NOTE If the buffer provided is outside the 0x20000-0x2FE00 range,
 	// the function will use copy that buffer into the Virtual 8086 disk range
 	uint8_t *v86buf = buffer;
