@@ -3,7 +3,7 @@
 
 extern char _USERMODE, _USERMODE_END;
 extern uint32_t create_user_child(uint32_t esp, uint32_t eip, uint32_t argc, ...);
-void ProgramLoadTest(char *path, dirent *de) {
+void ProgramLoadTest(char *path) {
     uint16_t *vga_text = (uint16_t *)0xb8000;
     for (int i = 0; i < 80*25; i++)
         vga_text[i] = 0x0f00;
@@ -11,7 +11,13 @@ void ProgramLoadTest(char *path, dirent *de) {
     uint8_t *diskReadBuf = (uint8_t *)&_USERMODE;
     {
         uint32_t err;
-        uint8_t *scratch = (uint8_t *)0x20000;
+        dirent de;
+        err = path_getinfo(path, &de);
+        if (de.size > 0x300000 || err) {
+            vga_text += printStr("File too large or error.", vga_text);
+            kbd_wait();
+            return;
+        }
         FILE file;
         err = file_open(&file, path, OPENREAD);
         if (err) {
@@ -19,18 +25,13 @@ void ProgramLoadTest(char *path, dirent *de) {
             printDword(err, vga_text);
             return;
         }
-        if (de->size > 0x300000) {
-            vga_text += printStr("File too large.", vga_text);
-            kbd_wait();
-            return;
-        }
         err = file_seek(&file, 0);
         if (err) {
             vga_text += printStr("Seek Error", vga_text);
             return;
         }
-        err = file_read(&file, diskReadBuf, de->size);
-        if (!err && de->size > 0) {
+        successcount = err = file_read(&file, diskReadBuf, de.size);
+        if (!err && de.size > 0) {
             vga_text += printStr("Read Error", vga_text);
             printDword(err, vga_text);
             return;

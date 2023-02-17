@@ -1,6 +1,7 @@
 #include <stdint.h>
 
 #include "file.h"
+#include "fs.h"
 #include "print.h"
 #include "interrupt.h"
 #include "kbd.h"
@@ -281,13 +282,17 @@ void ScancodeTest() {
 }
 extern void create_child(uint32_t esp, uint32_t eip, uint32_t argc, ...);
 uint16_t FileSelectScreen[80*25];
+char ValidFilesystems[256];
 void FileSelect() {
+    ActiveFilesystemBitmap(ValidFilesystems);
+    uint8_t currentFsId = 0;
     char current_path[80];
     uintptr_t current_path_end;
     for (int i = 0; i < sizeof(current_path); i++)
         current_path[i] = 0;
-    current_path[0] = '/';
-    current_path_end = 1;
+    current_path[0] = '0';
+    current_path[1] = '/';
+    current_path_end = 2;
     fileCount = 5;
     uint16_t *vga_text = (uint16_t *)FileSelectScreen;
     int32_t fileHovered = 0;
@@ -304,6 +309,8 @@ void FileSelect() {
             printStr("P to load as program", vga);
             vga += 80;
             printStr("O to open directory", vga);
+            vga += 80;
+            printStr("S to switch volume", vga);
             vga += 80;
             printStr("F4 to run tests", vga);
         }
@@ -360,7 +367,7 @@ void FileSelect() {
                 for (int i = 0; i < DirEntries[fileHovered].namelen; i++)
                     current_path[current_path_end + i] = DirEntries[fileHovered].name[i];
                 current_path[current_path_end + DirEntries[fileHovered].namelen] = 0;
-                create_child(GetFreeStack(), (uintptr_t)ProgramLoadTest, 2, current_path, &DirEntries[fileHovered]);
+                create_child(GetFreeStack(), (uintptr_t)ProgramLoadTest, 1, current_path);
                 current_path[current_path_end] = 0;
                 RestoreVGA();
                 reload = 1;
@@ -370,7 +377,7 @@ void FileSelect() {
                 for (int i = 0; i < DirEntries[fileHovered].namelen; i++)
                     current_path[current_path_end + i] = DirEntries[fileHovered].name[i];
                 current_path[current_path_end + DirEntries[fileHovered].namelen] = 0;
-                create_child(GetFreeStack(), (uintptr_t)HexEditor, 2, current_path, &DirEntries[fileHovered]);
+                create_child(GetFreeStack(), (uintptr_t)HexEditor, 1, current_path);
                 current_path[current_path_end] = 0;
                 RestoreVGA();
                 reload = 1;
@@ -381,7 +388,7 @@ void FileSelect() {
                 for (int i = 0; i < DirEntries[fileHovered].namelen; i++)
                     current_path[current_path_end + i] = DirEntries[fileHovered].name[i];
                 current_path[current_path_end + DirEntries[fileHovered].namelen] = 0;
-                create_child(GetFreeStack(), (uintptr_t)TextViewTest, 2, current_path, &DirEntries[fileHovered]);
+                create_child(GetFreeStack(), (uintptr_t)TextViewTest, 1, current_path);
                 current_path[current_path_end] = 0;
                 RestoreVGA();
                 reload = 1;
@@ -419,6 +426,25 @@ void FileSelect() {
                     fileOffset = 0;
                 }
                 break;
+            case KEY_S:
+                // Next filesystem TODO Support over 077 I'm so lazy right now
+                for (currentFsId = (currentFsId + 1) % 64; !ValidFilesystems[currentFsId]; currentFsId = (currentFsId + 1) % 64);
+                if (currentFsId < 8) {
+                    current_path[0] = '0' + currentFsId;
+                    current_path[1] = '/';
+                    current_path[2] = 0;
+                    current_path_end = 2;
+                } else {
+                    current_path[0] = '0' + (currentFsId >> 3);
+                    current_path[1] = '0' + (currentFsId & 7);
+                    current_path[2] = '/';
+                    current_path[3] = 0;
+                    current_path_end = 3;
+                }
+                reload = 1;
+                fileHovered = 0;
+                fileOffset = 0;
+                break;
             case KEY_F6:
                 ScancodeTest();
                 reload = 1;
@@ -430,6 +456,7 @@ void FileSelect() {
 }
 
 int MakeSystemVolume(uint8_t sysPartition);
+void MakeMBRPartitions();
 void SystemRun(uint8_t sysPartition) {
     uint16_t *vga_text = (word *)0xb8000;
     RestoreVGA();
@@ -439,7 +466,6 @@ void SystemRun(uint8_t sysPartition) {
 
     // Check for FAT partition
     {
-        // TODO Check partitions beyond 0
         while (1) {
             create_child(GetFreeStack(), (uintptr_t)MakeSystemVolume, 1, sysPartition);
             if (!check_error_code()) break;
@@ -449,6 +475,7 @@ void SystemRun(uint8_t sysPartition) {
             vga_text += printStr("Press R to retry.", vga_text);
             for (;(get_scancode() & 0xff) != KEY_R;);
         }
+        create_child(GetFreeStack(), (uintptr_t)MakeMBRPartitions, 0);
     }
 
     for (;;) {

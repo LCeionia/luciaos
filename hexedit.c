@@ -12,30 +12,28 @@ uint32_t blockLenMap[TOTALBLOCKS] __attribute__((section(".hexbss")));;
 // so that it can be expanded without telling C how much
 // it actually needs
 uint8_t writeStoreBase[BLOCKSIZE] __attribute__((section(".hexlatebss")));
-void HexEditor(char *path, dirent *de) {
+void HexEditor(char *path) {
     uint32_t err;
     uint16_t *vga_text = (uint16_t *)0xb8000;
     uint32_t screenSize = 80*25;
-    uint8_t *scratch = (uint8_t *)0x20000;
     uint8_t (*writeStore)[BLOCKSIZE] = &writeStoreBase;
-    uint32_t filelen = de->size;
     for (int i = 0; i < TOTALBLOCKS; i++)
         writtenMap[i] = 0;
     uint8_t *screenBuff = *writeStore;
     // First two blocks are screen buffer
     uint32_t nextFreeBlock = 2;
 
-    FILE file;
     vga_text = (uint16_t *)0xb8000;
     for (int i = 0; i < 80*50; i++)
         vga_text[i] = 0x0f00;
-    err = file_open(&file, path, OPENREAD|OPENWRITE);
+    dirent de;
+    err = path_getinfo(path, &de);
     if (err) {
-        vga_text += printStr("Open Error: ", vga_text);
-        printDword(err, vga_text);
+        vga_text += printStr("Error getting file info.", vga_text);
         kbd_wait();
         return;
     }
+    uint32_t filelen = de.size;
     if (filelen == 0) {
         vga_text += printStr("File ", vga_text);
         vga_text += printStr((char*)path, vga_text);
@@ -47,6 +45,14 @@ void HexEditor(char *path, dirent *de) {
         vga_text += printStr("File ", vga_text);
         vga_text += printStr((char*)path, vga_text);
         vga_text += printStr(" is too large (> 2GB).", vga_text);
+        kbd_wait();
+        return;
+    }
+    FILE file;
+    err = file_open(&file, path, OPENREAD|OPENWRITE);
+    if (err) {
+        vga_text += printStr("Open Error: ", vga_text);
+        printDword(err, vga_text);
         kbd_wait();
         return;
     }

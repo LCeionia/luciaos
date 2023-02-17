@@ -12,12 +12,19 @@ uint8_t editedBlocks[TOTALBLOCKS] __attribute__((section(".textbss")));;
 uint8_t fileBuffer[MAXFILESIZE]
     __attribute__((aligned(0x1000)))
     __attribute__((section(".textlatebss")));
-void TextViewTest(char *path, dirent *de) {
+void TextViewTest(char *path) {
     uint16_t *vga_text = (uint16_t *)0xb8000;
-    uint32_t fileLen = de->size;
+    uint32_t fileLen;
     {
         uint32_t err;
-        uint8_t *scratch = (uint8_t *)0x20000;
+        dirent de;
+        err = path_getinfo(path, &de);
+        if (err) {
+            vga_text += printStr("Error getting file info.", vga_text);
+            kbd_wait();
+            return;
+        }
+        fileLen = de.size;
         FILE file;
         err = file_open(&file, path, OPENREAD);
         if (err) {

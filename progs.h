@@ -7,6 +7,6 @@
 #include "helper.h"
 #include "file.h"
 
-void HexEditor(char *path, dirent *de);
-void TextViewTest(char *path, dirent *de);
-void ProgramLoadTest(char *path, dirent *de);
+void HexEditor(char *path);
+void TextViewTest(char *path);
+void ProgramLoadTest(char *path);

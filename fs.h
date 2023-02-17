@@ -3,9 +3,7 @@
 #include "file_s.h"
 
 typedef struct filesystem {
-    uint8_t id;
-    uint8_t resv0;
-    uint16_t resv1;
+    uint32_t resv0;
     uint32_t type;
     struct fs_operations {
         int (*file_open)(uint8_t *, FILE *, char *, char);
@@ -24,5 +22,11 @@ typedef struct filesystem {
     } ops;
     uint8_t labellen;
     char label[255];
-    uint8_t fs_data[512-4-4-44-256];
+    uint8_t fs_data[2048-4-4-44-256];
 } __attribute__((packed)) filesystem;
+
+filesystem *GetFilesystem(uint8_t idx);
+filesystem *GetActiveFilesystem();
+uint8_t GetActiveFilesystemId();
+filesystem *SetActiveFilesystem(uint8_t idx);
+void ActiveFilesystemBitmap(char *bitmap);

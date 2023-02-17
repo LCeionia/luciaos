@@ -2,6 +2,10 @@
 #include "fs.h"
 #include "dosfs/dosfs.h"
 
+char *strncpy(char *restrict d, const char *restrict s, uintptr_t n);
+int strcmp(const char *l, const char *r);
+void *memcpy(void *restrict dest, const void *restrict src, uintptr_t n);
+
 // Implementations for DOSFS
 
 uint32_t DFS_ReadSector(uint8_t unit, uint8_t *buffer, uint32_t sector, uint32_t count) {
@@ -38,6 +42,18 @@ int file83ToPath(uint8_t *src, char *path) {
     if (trailingSpace == 3) tmp--;
     path[tmp] = 0;
     return tmp;
+}
+
+uintptr_t stripToDir(char *path) {
+    int i = 0;
+    // find end of string
+    for (;path[i];i++);
+    // find last /
+    for (;path[i] != '/' && i >= 0;i--);
+    // path[i] == '/'
+    // set next to end, return split location
+    path[i+1] = 0;
+    return i + 1;
 }
 
 int dos_file_open(uint8_t *dat, FILE *f, char *path, char mode) {
@@ -92,7 +108,6 @@ int dos_dir_open(uint8_t *dat, DIR *d, char *path) {
 
 int dos_dir_nextentry(uint8_t *dat, DIR *d, dirent *ent) {
     fsdat *fs = (fsdat *)dat;
-    uint8_t *scratch = (uint8_t *)0x20000;
     DIRENT de;
     for (;;) {
         uint32_t code = DFS_GetNext(&fs->vi, (DIRINFO *)d->bytes, &de);
@@ -121,10 +136,35 @@ int dos_dir_nextentry(uint8_t *dat, DIR *d, dirent *ent) {
 // DOSFS doesn't have anything to clean up
 void dos_dir_close(uint8_t *dat, DIR *d) { return; }
 
-// TODO Unimplemented
+// TODO Make this less expensive -> Use DOSFS directly?
 int dos_path_getinfo(uint8_t *dat, char *path, dirent *d) {
     fsdat *fs = (fsdat *)dat;
     uint8_t *scratch = (uint8_t *)0x20000;
+
+    // Get directory path is in
+    uint8_t tmppath[MAX_PATH];
+    strncpy((char*)tmppath,path,MAX_PATH);
+    tmppath[MAX_PATH-1]=0;
+    uintptr_t nameidx = stripToDir((char*)tmppath);
+    char *name = &path[nameidx];
+
+    // Open directory
+    DIR dir;
+    dos_dir_open(dat, &dir, (char*)tmppath);
+    
+    dirent de;
+    // Enumerate info
+    for (;dos_dir_nextentry(dat, &dir, &de) == 0;) {
+        // Check if correct entry
+        if (strcmp(de.name, name) == 0) {
+            // Copy to caller dirent
+            for (int i = 0; i < sizeof(dirent); i++)
+                ((uint8_t*)d)[i] = ((uint8_t*)&de)[i];
+            return 0;
+        }
+    }
+
+    // Did not find or error
     return -1;
 }
 
@@ -152,20 +192,27 @@ int dos_path_rmfile(uint8_t *dat, char *path) {
 // DOSFS doesn't have anything to clean up
 void dos_endfs(uint8_t *dat) { return; }
 
-// Not yet decided
-char DetectDosPart() {
+// Try to detect if partition is a valid DOS partition
+char DetectDosPart(uint32_t start_sector) {
+    // Read sector
+    //uint8_t *scratch = (uint8_t *)0x20000;
+    //Disk_ReadSector(0, scratch, start_sector, 1);
+    //// Check for start bytes EBXX90
+    //if (((*(uint32_t*)&scratch[0]) & 0x00FF00FF) != 0x9000EB) return 0;
+    //// Check for bytes per sector == 512 (We don't support other values anyway)
+    //if (*(uint16_t*)&scratch[0xB] != 512) return 0;
+
+    // TODO Check more, so we *know* it's FAT
+
+    // We're probably FAT
     return 1;
 }
 
-int InitDosFs(filesystem *fs, char partition) {
+int InitDosFs(filesystem *fs, uint32_t start_sector) {
     uint8_t *diskReadBuf = (uint8_t *)0x20000;
-    uint8_t pactive, ptype;
-    uint32_t pstart, psize;
-    pstart = DFS_GetPtnStart(0, diskReadBuf, partition, &pactive, &ptype, &psize);
-    if (pstart == -1) return -1;
 
     VOLINFO *vi = (VOLINFO *)fs->fs_data;
-    if (DFS_GetVolInfo(0, diskReadBuf, pstart, (VOLINFO *)fs->fs_data)) {
+    if (DFS_GetVolInfo(0, diskReadBuf, start_sector, (VOLINFO *)fs->fs_data)) {
         return -1;
     }
 
