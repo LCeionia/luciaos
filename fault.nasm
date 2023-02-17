@@ -83,6 +83,7 @@ je .int30
 cmp eax, 0x21CD ; int 0x21
 je .int21
 jmp gpf_unhandled
+
 .int21:
 pop eax ; command
 cmp al, 0x00 ; get key
@@ -94,7 +95,13 @@ jne .s86
 call get_scancode
 jmp .return_to_offender
 .s86: cmp al, 0x86 ; v86 interrupt call
+je .v86int
+cmp ax, 0x86D8 ; get v86 data pointer
 jne .return_to_offender
+mov eax, 0x30000 ; V86 Data
+jmp .return_to_offender
+
+.v86int:
 add esp, 4
 add dword [esp+0], 2
 ; add a new task
@@ -120,6 +127,7 @@ push eax ; cs
 push 0xFF00 ; sp
 push 0x8000 ; ss
 jmp _enter_v86_internal_no_task ; NOT a function call
+
 .int30:
 pop eax ; return value
 jmp return_prev_task

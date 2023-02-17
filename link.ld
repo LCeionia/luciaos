@@ -3,7 +3,8 @@ ENTRY(entry)
 
 SECTIONS {
     . = 0x100000;
-    _USERMODE = 0x400000;
+    _USERMODE = 0x800000;
+    _USERMODE_END = 0x1000000;
 
     .text : {
         *(.text);

@@ -1,5 +1,5 @@
 [BITS 32]
-[ORG 0x400000]
+[ORG 0x800000]
 xchg bx,bx
 mov edi, 0xB8000
 mov ecx, 80*25

@@ -16,7 +16,7 @@ mov es, ax
 mov ss, ax
 mov fs, ax
 mov gs, ax
-mov ebp, 0x400000
+mov ebp, 0x800000
 mov esp, ebp
 mov eax, 0x1f001f00
 mov ecx, (80*25)/2

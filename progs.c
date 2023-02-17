@@ -1,9 +1,7 @@
 #include "progs.h"
 #include "file.h"
 
-// 400000 - 700000 Usermode Code (3mB)
-// 700000 - 800000 Usermode Stack (1mB)
-extern char _USERMODE;
+extern char _USERMODE, _USERMODE_END;
 extern uint32_t create_user_child(uint32_t esp, uint32_t eip, uint32_t argc, ...);
 void ProgramLoadTest(char *path, dirent *de) {
     uint16_t *vga_text = (uint16_t *)0xb8000;
@@ -46,7 +44,7 @@ void ProgramLoadTest(char *path, dirent *de) {
     vga_text = nextLine(vga_text,(uint16_t*)0xb8000);
     vga_text += printStr("Press any key to run.", vga_text);
     kbd_wait();
-    uint32_t res = create_user_child(0x800000, (uintptr_t)&_USERMODE, 0);
+    uint32_t res = create_user_child((uintptr_t)&_USERMODE_END, (uintptr_t)&_USERMODE, 0);
     union V86Regs_t regs;
     regs.w.ax = 3; // text mode
     V8086Int(0x10, &regs); 

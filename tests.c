@@ -16,7 +16,7 @@ void TestV86() {
     uint16_t *vga_text = (uint16_t *)0xb8000 + (80*2);
     vga_text += printStr("Done.", vga_text);
 }
-extern char _USERMODE;
+extern char _USERMODE, _USERMODE_END;
 extern char _binary_usermode_bin_start, _binary_usermode_bin_end;
 void ReloadUser() {
     // Put Usermode code in proper place based on linker
@@ -27,7 +27,7 @@ void ReloadUser() {
 }
 char TestUser() {
     ReloadUser();
-    char *vga = (char *)(uintptr_t)create_user_child(0x800000, (uintptr_t)&_USERMODE, 0);
+    char *vga = (char *)(uintptr_t)create_user_child((uintptr_t)&_USERMODE_END, (uintptr_t)&_USERMODE, 0);
     if ((uintptr_t)vga != 0xA0000) {
         return 1;
     }

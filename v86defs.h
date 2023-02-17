@@ -14,6 +14,7 @@ extern void v86DiskReadCHS();
 
 union __attribute((__packed__)) V86Regs_t {
     struct dword_regs { 
+        uint32_t ebp;
         uint32_t edi;
         uint32_t esi;
         uint32_t ebx;
@@ -22,6 +23,7 @@ union __attribute((__packed__)) V86Regs_t {
         uint32_t eax;
     } d;
     struct word_regs { 
+        uint16_t bp, _upper_bp;
         uint16_t di, _upper_di;
         uint16_t si, _upper_si;
         uint16_t bx, _upper_bx;
@@ -30,8 +32,9 @@ union __attribute((__packed__)) V86Regs_t {
         uint16_t ax, _upper_ax;
     } w;
     struct byte_regs { 
-        uint16_t di, _upper_di;
-        uint16_t si, _upper_si;
+        uint32_t ebp;
+        uint32_t edi;
+        uint32_t esi;
         uint8_t bl, bh;
         uint16_t _upper_bx;
         uint8_t dl, dh;

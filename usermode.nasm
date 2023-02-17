@@ -1,5 +1,5 @@
 [BITS 32]
-[ORG 0x400000]
+[ORG 0x800000]
 global user_test
 user_test:
 mov dword [0xb8000], 0x0f000f00 | 'U' | 's' << 16
@@ -43,6 +43,7 @@ push 0x00000000 ; edx
 push 0x00000000 ; ebx
 push 0x00000000 ; esi
 push 0x00000000 ; edi
+push 0x00000000 ; ebp
 push esp ; regs
 push 0x10 ; interrupt
 mov eax, 0x86 ; command = 86h, virtual 8086 call

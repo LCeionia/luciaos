@@ -171,10 +171,11 @@ Real Mode Accessible (First MB)
  01000 -  04000 Free (12kB)
  04000 -  07C00 V86 Code (15kB)
  07C00 -  08000 Boot & V86 Code (512B)
- 08000 -  20000 V86 Code (96kB)
+ 08000 -  20000 Free (96kB)
  20000 -  30000 Disk Buffer (64kB)
- 30000 -  80000 Free (320kB)
- 80000 -  90000 Real Mode Stack (64kB)
+ 30000 -  40000 V86 Data (64kB)
+ 40000 -  80000 Free (256kB)
+ 80000 -  90000 V86 Stack (64kB)
  90000 -  A0000 Free (64kB)
  A0000 -  C0000 VGA (128kB)
  C0000 -  FFFFF BIOS Area (256kB)
@@ -434,6 +435,8 @@ void SystemRun(uint8_t sysPartition) {
     RestoreVGA();
     DrawScreen((uint16_t*)0xb8000);
 
+    InitDisk();
+
     // Check for FAT partition
     {
         // TODO Check partitions beyond 0
@@ -528,7 +531,6 @@ void start() {
     setup_tss();
     init_paging();
     backup_ivtbios();
-    InitDisk();
 
     // DL contained disk number, DH contained active partition
     uint8_t SystemPartition = boot_dx >> 8;

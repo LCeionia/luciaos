@@ -152,17 +152,12 @@ mov ecx, esp ; return stack
 call save_current_task
 _enter_v86_internal_no_task:
 mov ebp, esp               ; save stack pointer
-mov eax, dword [ebp+16] ; regs
-test eax, eax
-jz .no_regs
-; load regs: edi, esi, ebx, edx, ecx, eax
-mov edi, dword [eax+0]
-mov esi, dword [eax+4]
-mov ebx, dword [eax+8]
-mov edx, dword [eax+12]
-mov ecx, dword [eax+16]
-mov eax, dword [eax+20]
-.no_regs:
+; push v86 stuff for iret
+mov eax, 0x3000
+push eax ; gs
+push eax ; fs
+push eax ; ds
+push eax ; es
 push dword  [ebp+0]        ; ss
 push dword  [ebp+4]        ; esp
 pushfd                     ; eflags
@@ -170,6 +165,19 @@ or dword [esp], (1 << 17)  ; set VM flags
 ;or dword [esp], (3 << 12) ; IOPL 3
 push dword [ebp+8]        ; cs
 push dword  [ebp+12]       ; eip
+; check if we have regs
+mov eax, dword [ebp+16] ; regs
+test eax, eax
+jz .no_regs
+; load regs: ebp, edi, esi, ebx, edx, ecx, eax
+mov ebp, dword [eax+0]
+mov edi, dword [eax+4]
+mov esi, dword [eax+8]
+mov ebx, dword [eax+12]
+mov edx, dword [eax+16]
+mov ecx, dword [eax+20]
+mov eax, dword [eax+24]
+.no_regs:
 iret
 
 ; return address in eax, return stack in ebp
